@@ -33,31 +33,6 @@ func when(_ date: Date) -> String {
     return date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: tr("ru_RU", "en_US"))))
 }
 
-// MARK: - Edge tab
-
-struct EdgeTab: View {
-    let store: Store
-    let open: () -> Void
-
-    var body: some View {
-        let count = store.stickers.filter { !$0.isLater }.count  // same as the panel header: pinned ones count
-        Button(action: open) {
-            VStack(spacing: 10) {
-                Image(systemName: "note.text").font(.system(size: 17, weight: .semibold))
-                Text("\(count)").font(.system(size: 15, weight: .bold)).monospacedDigit()
-            }
-            .foregroundStyle(Palette.ink)
-            .frame(width: 44, height: 132)
-            .background(UnevenRoundedRectangle(bottomTrailingRadius: 14, topTrailingRadius: 14)
-                .fill(Palette.sticky).shadow(color: .black.opacity(0.28), radius: 10, y: 6))
-        }
-        .buttonStyle(.plain)
-        .onHover { if $0 { open() } }
-        .accessibilityLabel(tr("Открыть идеи: ", "Open ideas: ") + "\(count)")
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
 // MARK: - Panel
 
 struct PanelView: View {
@@ -92,14 +67,14 @@ struct PanelView: View {
                 .help(state.locked ? tr("Открепить панель", "Unpin the panel") : tr("Закрепить панель открытой", "Keep the panel open"))
                 .accessibilityLabel(state.locked ? tr("Открепить панель", "Unpin the panel") : tr("Закрепить панель открытой", "Keep the panel open"))
                 Button { state.locked = false; board.setOpen(false) } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Palette.muted)
                         .frame(width: 36, height: 36)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(tr("Свернуть", "Collapse"))
+                .accessibilityLabel(tr("Закрыть", "Close"))
             }
             .padding(EdgeInsets(top: 16, leading: 18, bottom: 10, trailing: 16))
 
@@ -156,13 +131,9 @@ struct PanelView: View {
         .frame(maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.panel).shadow(color: .black.opacity(0.35), radius: 25, y: 18))
-        // The strip between the screen edge and the card counts as inside, or leaving toward the edge
-        // would close the panel right over the tab and reopen it.
-        .padding(.leading, 12)
-        .background(alignment: .leading) { Color.white.opacity(0.02).frame(width: 12) }  // alpha 0 would pass the mouse through
-        .onHover { if !$0 { board.mouseLeftPanel() } }
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, panelMargin)
+        .padding(.bottom, panelMargin)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 

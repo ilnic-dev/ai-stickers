@@ -40,8 +40,9 @@ struct Config {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = Store()
-    lazy var board = Board(store: store)
+    lazy var board = Board(store: store, anchor: { [unowned self] in status.button?.window?.frame })
     var status: NSStatusItem!
+    private var menu = NSMenu()
     private var loginItem = NSMenuItem()
     private var configMissing = false
 
@@ -60,9 +61,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // Left click opens the panel, right (or ⌃) click the menu.
+        status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
-        store.onChange = { [unowned self] in board.storeChanged() }
+        status.button?.imagePosition = .imageLeading
+        status.button?.target = self
+        status.button?.action = #selector(statusClicked)
+        status.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        store.onChange = { [unowned self] in
+            board.storeChanged()
+            showCount()
+        }
+        showCount()
         board.start()
 
         if let cfg = Config.load() {
@@ -102,11 +112,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: tr("Выйти", "Quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        status.menu = menu
+        self.menu = menu
         applyLaunchAtLogin()
     }
 
     @objc private func showIdeas() { board.setOpen(true) }
+
+    @objc private func statusClicked() {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: (status.button?.bounds.height ?? 22) + 4), in: status.button)
+        } else {
+            board.toggle()
+        }
+    }
+
+    /// Open ideas next to the icon (pinned ones too, "позже" not), nothing when there are none.
+    private func showCount() {
+        let count = store.stickers.filter { !$0.isLater }.count
+        status.button?.title = count > 0 ? " \(count)" : ""
+        status.button?.setAccessibilityLabel("AI Stickers: \(count)")
+    }
 
     @objc private func pickLanguage(_ item: NSMenuItem) {
         Lang.shared.set(english: item.tag == 1)  // SwiftUI views redraw by themselves
