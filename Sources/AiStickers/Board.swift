@@ -1,54 +1,6 @@
 import AppKit
 import SwiftUI
 
-struct Sticker: Codable, Identifiable {
-    var id = UUID()
-    var created = Date()
-    var title: String
-    var summary: String
-    var todo: [String]
-    var raw: String
-    var left: Double?  // top-left corner on screen, set once the sticker has a window
-    var top: Double?
-}
-
-@MainActor
-final class Store {
-    private(set) var stickers: [Sticker] = []
-    var onChange: (() -> Void)?
-    private let url: URL
-
-    init() {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AiStickers")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        url = dir.appendingPathComponent("stickers.json")
-        guard let data = try? Data(contentsOf: url) else { return }
-        do {
-            stickers = try JSONDecoder().decode([Sticker].self, from: data)
-        } catch {
-            // Keep an unreadable file instead of overwriting it with an empty list.
-            try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("broken-\(Int(Date().timeIntervalSince1970))"))
-        }
-    }
-
-    func add(_ s: Sticker) { stickers.append(s); save(); onChange?() }
-    func remove(_ id: UUID) { stickers.removeAll { $0.id == id }; save(); onChange?() }
-
-    func place(_ id: UUID, left: Double, top: Double) {
-        guard let i = stickers.firstIndex(where: { $0.id == id }) else { return }
-        stickers[i].left = left
-        stickers[i].top = top
-        save()
-    }
-
-    private func save() {
-        let enc = JSONEncoder()
-        enc.outputFormatting = .prettyPrinted
-        try? enc.encode(stickers).write(to: url, options: .atomic)
-    }
-}
-
 /// One floating, draggable panel per sticker. New stickers line up along the left edge of the screen.
 @MainActor
 final class Board {
