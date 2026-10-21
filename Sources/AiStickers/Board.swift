@@ -16,6 +16,13 @@ final class BoardState {
 final class Panel: NSPanel {
     override var canBecomeKey: Bool { true }  // the new-tag text field needs keyboard input
 
+    /// Panels never activate the app, so a click on one that isn't key would be spent on making it key
+    /// (in any subview: scroll view, card, button). Become key first and let the click through.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown && !isKeyWindow { makeKey() }
+        super.sendEvent(event)
+    }
+
     convenience init(_ frame: NSRect, _ content: some View) {
         self.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = .floating
@@ -25,8 +32,14 @@ final class Panel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false  // SwiftUI draws the shadows
-        contentView = NSHostingView(rootView: content)
+        contentView = FirstClickHostingView(rootView: content)
     }
+}
+
+/// The panels never activate the app, so without this the first click on them is spent making
+/// the window key and a card can't be grabbed until the second try.
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// Room around a pinned sticker for its shadow and for growing on hover.
@@ -46,7 +59,7 @@ final class Board {
     private var tab: Panel!
     private var panel: Panel!
     private var toast: Panel!
-    private var pinned: [UUID: (window: Panel, observer: NSObjectProtocol)] = [:]
+    private var pinned: [UUID: Panel] = [:]
     private var ghost: Panel?
 
     init(store: Store) { self.store = store }
@@ -79,11 +92,15 @@ final class Board {
         tab.setFrame(NSRect(x: vf.minX, y: vf.maxY - 300, width: 64, height: 172), display: true)
         panel.setFrame(NSRect(x: vf.minX, y: vf.minY, width: panelInset + panelWidth + 40, height: vf.height), display: true)
         toast.setFrame(NSRect(x: vf.midX - toastSize.width / 2, y: vf.minY + 24, width: toastSize.width, height: toastSize.height), display: true)
-        for (_, p) in pinned {
-            let w = p.window
-            let at = onScreen(left: w.frame.minX + pinMargin, top: w.frame.maxY - pinMargin)
-            if at != w.frame.origin { w.setFrameOrigin(at) }  // didMove saves the new spot
-        }
+        for id in pinned.keys { pinnedMoved(id) }
+    }
+
+    /// A pinned sticker was let go (or the screens changed): keep it on screen and save where it is.
+    func pinnedMoved(_ id: UUID) {
+        guard let w = pinned[id] else { return }
+        let at = onScreen(left: w.frame.minX + pinMargin, top: w.frame.maxY - pinMargin)
+        if at != w.frame.origin { w.setFrameOrigin(at) }
+        store.place(id, left: w.frame.minX + pinMargin, top: w.frame.maxY - pinMargin)
     }
 
     /// Window origin for a pinned sticker whose card corner is at (left, top), kept on the nearest screen.
@@ -114,25 +131,18 @@ final class Board {
 
     func syncPinned() {
         let ids = Set(store.stickers.filter(\.pinned).map(\.id))
-        for (id, p) in pinned where !ids.contains(id) {
-            NotificationCenter.default.removeObserver(p.observer)
+        for (id, w) in pinned where !ids.contains(id) {
             pinned[id] = nil
             // Unpin/delete come from a button inside this window: close it after that event finishes.
-            DispatchQueue.main.async { p.window.close() }
+            DispatchQueue.main.async { w.close() }
         }
         for s in store.stickers where s.pinned && pinned[s.id] == nil {
-            let w = Panel(NSRect(origin: .zero, size: pinWindow), PinnedView(id: s.id, store: store))
-            w.isMovableByWindowBackground = true
+            let w = Panel(NSRect(origin: .zero, size: pinWindow),
+                          PinnedView(id: s.id, store: store, onMoved: { [weak self] in self?.pinnedMoved(s.id) }))
             // Not saved back: if the monitor returns on the next launch, so does the sticker.
             w.setFrameOrigin(onScreen(left: s.left ?? 400, top: s.top ?? 700))
             w.orderFrontRegardless()
-            let observer = NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: w, queue: .main) { [weak self, weak w] _ in
-                MainActor.assumeIsolated {
-                    guard let w else { return }
-                    self?.store.place(s.id, left: w.frame.minX + pinMargin, top: w.frame.maxY - pinMargin)
-                }
-            }
-            pinned[s.id] = (w, observer)
+            pinned[s.id] = w
         }
     }
 
