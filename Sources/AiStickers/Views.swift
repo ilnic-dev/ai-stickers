@@ -47,7 +47,7 @@ struct EdgeTab: View {
     let open: () -> Void
 
     var body: some View {
-        let count = store.stickers.filter { !$0.pinned && !$0.isLater }.count
+        let count = store.stickers.filter { !$0.isLater }.count  // same as the panel header: pinned ones count
         Button(action: open) {
             VStack(spacing: 10) {
                 Image(systemName: "note.text").font(.system(size: 17, weight: .semibold))
@@ -74,9 +74,9 @@ struct PanelView: View {
 
     var body: some View {
         let inPanel = store.stickers.filter { !$0.pinned }
-        let active = inPanel.filter { !$0.isLater }
+        let active = store.stickers.filter { !$0.isLater }  // pinned ones too: they are still open ideas
         let list = panelStickers(store.stickers, filter: state.filter, showLater: state.showLater)
-        let laterCount = inPanel.count - active.count
+        let laterCount = inPanel.filter(\.isLater).count
         let counts = Dictionary(inPanel.flatMap(\.tags).map { ($0, 1) }, uniquingKeysWith: +)
 
         VStack(spacing: 0) {
@@ -385,6 +385,7 @@ struct PinnedView: View {
     let id: UUID
     let store: Store
     var preview = false
+    var onMoved: () -> Void = {}
     @State private var hovered = false
     @State private var moving = false
 
@@ -402,7 +403,7 @@ struct PinnedView: View {
                         IconButton("pin.slash", label: "Вернуть в панель") { store.update(id) { $0.pinned = false } }
                         IconButton("trash", label: "Удалить") { store.remove(id) }
                     }
-                    MoveHandle(moving: $moving)
+                    MoveHandle(moving: $moving, onMoved: onMoved)
                 }
                 Text(s.summary)
                     .font(.system(size: 13))
@@ -472,6 +473,7 @@ struct UndoToast: View {
 /// Grab it to move the sticker's window anywhere on screen.
 struct MoveHandle: View {
     @Binding var moving: Bool
+    let onMoved: () -> Void
 
     var body: some View {
         Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
@@ -479,25 +481,31 @@ struct MoveHandle: View {
             .foregroundStyle(Palette.meta)
             .frame(width: 28, height: 28)
             .background(Palette.meta.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(WindowDragArea(moving: $moving))
+            .overlay(WindowDragArea(moving: $moving, onMoved: onMoved))
             .help("Перетащить")
             .accessibilityLabel("Перетащить стикер")
     }
 }
 
 /// Moves its window with the mouse. Tracked by hand rather than with performDrag, which drops the
-/// hover state mid-drag; the new position is saved on didMove.
+/// hover state mid-drag; the position is saved once, on release.
 struct WindowDragArea: NSViewRepresentable {
     @Binding var moving: Bool
+    let onMoved: () -> Void
 
     func makeNSView(context: Context) -> DragView { DragView() }
-    func updateNSView(_ view: DragView, context: Context) { view.onMoving = { moving = $0 } }
+    func updateNSView(_ view: DragView, context: Context) {
+        view.onMoving = { moving = $0 }
+        view.onMoved = onMoved
+    }
 
     final class DragView: NSView {
         var onMoving: (Bool) -> Void = { _ in }
+        var onMoved: () -> Void = {}
         private var start: (mouse: NSPoint, origin: NSPoint)?
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }  // we move it ourselves
         override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
 
         override func mouseDown(with event: NSEvent) {
@@ -515,6 +523,7 @@ struct WindowDragArea: NSViewRepresentable {
         override func mouseUp(with event: NSEvent) {
             start = nil
             onMoving(false)
+            onMoved()
         }
     }
 }
