@@ -38,12 +38,12 @@ Telegram  ──►  AI Stickers.app on your Mac
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
 - **Right-click the icon** for the menu: show ideas, launch at login, interface language, quit.
 - **English or Russian interface**, switched in the menu bar («Язык / Language»); it follows the system language by default. Stickers stay in the language you spoke them in.
-- **Starts at login**, has no Dock icon, and only one copy runs at a time.
+- **Can start at login** (it asks on first launch), has no Dock icon, and only one copy runs at a time.
 
 ## Requirements
 
 - macOS 14 or later
-- Xcode or the Command Line Tools (to build)
+- Xcode or the Command Line Tools, only to build from source
 - [Homebrew](https://brew.sh): `brew install ffmpeg whisper-cpp`
 - A whisper.cpp model from [huggingface.co/ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp/tree/main): `ggml-large-v3.bin` (3 GB, recommended: handles Russian mixed with English) or `ggml-small.bin` (fast, weaker on mixed speech)
 - [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` on your machine)
@@ -58,16 +58,24 @@ Telegram  ──►  AI Stickers.app on your Mac
    TELEGRAM_BOT_TOKEN=123456:ABC...
    ```
 
-3. **Build and install:**
+3. **Get the app**, one of two ways:
 
-   ```bash
-   git clone https://github.com/nitsiyevskii/ai-stickers.git
-   cd ai-stickers
-   ./scripts/install.sh
-   ```
+   - **Download** `AI-Stickers-<version>.zip` from the [latest release](https://github.com/nitsiyevskii/ai-stickers/releases/latest),
+     unzip it, move **AI Stickers.app** to Applications and open it. The app isn't notarized, so macOS
+     blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway**
+     (or run `xattr -dr com.apple.quarantine "/Applications/AI Stickers.app"`).
+   - **Or build it** (needs Xcode or the Command Line Tools):
 
-   This builds `AI Stickers.app`, copies it to `/Applications`, starts it and adds it to your
-   login items. Run the same command to update after pulling new code.
+     ```bash
+     git clone https://github.com/nitsiyevskii/ai-stickers.git
+     cd ai-stickers
+     ./scripts/install.sh
+     ```
+
+     This builds `AI Stickers.app`, copies it to `/Applications` and starts it. Run the same command
+     to update after pulling new code.
+
+   On first launch the app asks whether to open at login; change it later in the icon's menu.
 
 4. **Claim the bot.** Send it any message. It replies with your Telegram ID; add it to the config:
 
@@ -118,7 +126,10 @@ swift run                   # dev run: no launch at login, no single-instance ch
 | `Sources/AiStickers/Store.swift` | sticker model, JSON storage, filters and tags (pure, tested) |
 | `Sources/AiStickers/Board.swift` | windows: the menu bar panel, pinned stickers, dragging |
 | `Sources/AiStickers/Views.swift` | SwiftUI views |
-| `scripts/install.sh` | builds and installs `AI Stickers.app` |
+| `scripts/build-app.sh` | builds a universal, signed `AI Stickers.app` with its icon |
+| `scripts/install.sh` | builds it and installs into `/Applications` |
+| `scripts/release.sh` | builds it and publishes a GitHub release: `scripts/release.sh 1.2.0` |
+| `Resources/AppIcon.png` | app icon source (1024 px) |
 
 Plain SwiftPM, no dependencies. Every change goes through its own branch and a pull request
 that explains what changed and how it works. Rules for contributors and coding agents are in
@@ -127,7 +138,7 @@ that explains what changed and how it works. Rules for contributors and coding a
 ## Limitations
 
 - Telegram is the only input for now.
-- The app is built and ad-hoc signed on your own Mac; there is no notarized download.
+- The download is ad-hoc signed, not notarized: macOS asks you to confirm the first launch once.
 - Tag colors follow alphabetical order, so adding a tag can shift the colors of others.
 
 ## License

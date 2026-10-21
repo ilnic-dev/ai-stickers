@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
     private var bundleID: String? { Bundle.main.bundleIdentifier }
     private let loginOffKey = "launchAtLoginOff"
+    private let loginAskedKey = "launchAtLoginAsked"
 
     /// Opening the app again from Applications or Spotlight shows the panel: the way in if the
     /// menu bar icon is hidden behind the notch.
@@ -88,6 +89,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             configMissing = true
         }
         buildMenu()
+        if bundleID != nil && !UserDefaults.standard.bool(forKey: loginAskedKey) {
+            DispatchQueue.main.async { self.askLaunchAtLogin() }  // after the icon is up
+        }
+    }
+
+    /// First launch only: whether to start with the Mac is the user's call, not a silent default.
+    private func askLaunchAtLogin() {
+        NSApp.activate(ignoringOtherApps: true)  // a menu bar app's alert would open behind other windows
+        let alert = NSAlert()
+        alert.messageText = tr("Запускать AI Stickers при входе в систему?", "Open AI Stickers when you log in?")
+        alert.informativeText = tr("Тогда иконка 📝 будет в меню-баре сразу после включения мака. Это можно поменять в меню иконки (правый клик).",
+                                   "Then the 📝 icon is in the menu bar right after your Mac starts. You can change this in the icon's menu (right-click).")
+        alert.addButton(withTitle: tr("Запускать", "Open at login"))
+        alert.addButton(withTitle: tr("Не надо", "Not now"))
+        let yes = alert.runModal() == .alertFirstButtonReturn
+        UserDefaults.standard.set(!yes, forKey: loginOffKey)
+        UserDefaults.standard.set(true, forKey: loginAskedKey)
+        applyLaunchAtLogin()
     }
 
     /// Rebuilt whenever the interface language changes; menu titles are plain strings.
@@ -157,16 +176,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         UserDefaults.standard.set(loginItem.state == .on, forKey: loginOffKey)
+        UserDefaults.standard.set(true, forKey: loginAskedKey)
         applyLaunchAtLogin()
     }
 
-    /// On by default; the menu checkmark shows what macOS actually has registered.
+    /// Follows the first-launch answer or the menu toggle; the checkmark shows what macOS has registered.
     private func applyLaunchAtLogin() {
         loginItem.title = tr("Запускать при входе", "Launch at login")
         guard bundleID != nil else { return }
         let service = SMAppService.mainApp
         let off = UserDefaults.standard.bool(forKey: loginOffKey)
-        if off && service.status != .notRegistered {
+        if !UserDefaults.standard.bool(forKey: loginAskedKey) {
+            // Not asked yet: leave macOS as it is until the first-launch question is answered.
+        } else if off && service.status != .notRegistered {
             try? service.unregister()
         } else if !off && service.status == .notRegistered {
             try? service.register()
