@@ -27,10 +27,38 @@ Telegram  ──►  AI Stickers.app on your Mac
 - **No API keys.** Summaries go through the `claude` CLI and your Claude subscription.
 - **Nothing gets lost.** If Claude fails, the raw text becomes the sticker.
 
+## What happens to a message
+
+```
+you ──► Telegram ──► AI Stickers on your Mac ──► sticker in the panel
+          │  keeps it until the app      │  "typing…" in the chat while it works
+          │  picks it up (max 24 h)      └─► reply "📌 Title #tags" = saved
+```
+
+1. You send text or a voice note. Telegram holds it on its servers.
+2. The running app is always waiting for new messages and gets it within a second. The chat shows "typing…".
+3. A voice note is transcribed on your Mac (about 5 s per phrase with `large-v3`).
+4. Claude turns the text into a sticker (about 5 s).
+5. The sticker is saved, appears in the panel, and the bot replies **📌 Title #tags**.
+
+**The 📌 reply is your receipt.** If it hasn't come, the idea isn't on your Mac yet.
+
+| Situation | What happens |
+|---|---|
+| Mac on, app running | Sticker in 5–15 s, 📌 reply. |
+| Mac asleep or lid closed | Messages wait in Telegram. On wake the app fetches them in order and each one gets its 📌. |
+| Mac off, or the app quit | Same: they arrive when the app starts again (at login, if you allowed it). |
+| No internet on the Mac | The app retries every 5 s and catches up when the network is back. |
+| Not picked up for **more than 24 h** | Telegram drops undelivered bot messages after 24 h; those are lost. Send them again. |
+| Processing failed (unreadable voice, file over 20 MB) | The bot replies "⚠️ …". That message is not retried: send it again. |
+| Claude unavailable (signed out, usage limit) | The sticker is still saved: the first words of your text become its title, the whole text its summary. |
+| App crashed in the middle of a message | That message is delivered again on the next start (a duplicate is possible). |
+| The app runs on two Macs | Don't: two copies reading one bot take messages from each other. Run it on one Mac. |
+
 ## Features
 
 - **Menu bar icon** 📝 with the number of open ideas next to it. Click it to drop down the panel; click outside, click the icon again or press Esc to close it.
-- **Cards expand on hover**: summary, a checklist (ticks are saved), tags, and delete with a few seconds to undo.
+- **Cards expand on hover**: summary, a checklist (ticks are saved), tags, a copy button (title, summary, checklist and tags as text) and delete with a few seconds to undo.
 - **Tags.** Filter chips at the top of the panel; pick several at once. On a card, `×` removes a tag and `+ тег` adds an existing or a new one.
 - **Mixed Russian and English voice notes** come out right: English terms stay in Latin script, and the sticker is written in the language you mostly spoke.
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.

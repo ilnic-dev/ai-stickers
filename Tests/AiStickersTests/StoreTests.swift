@@ -109,3 +109,9 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     try Data(old.utf8).write(to: url)
     #expect(Store(url: url).stickers.first?.tags == [laterTag, "видео"])
 }
+
+@Test func copiedStickerReadsAsANote() {
+    let s = Sticker(title: "Запуск сайта", summary: "Лендинг и форма заявки.", todo: ["Тексты", "Домен"], raw: "", tags: ["бизнес"], done: [1])
+    #expect(clipboardText(s) == "Запуск сайта\n\nЛендинг и форма заявки.\n\n- [ ] Тексты\n- [x] Домен\n\n#бизнес")
+    #expect(clipboardText(Sticker(title: "t", summary: "t", todo: [], raw: "")) == "t")
+}

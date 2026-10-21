@@ -88,6 +88,17 @@ func isMostlyCyrillic(_ text: String) -> Bool {
     return cyrillic > latin
 }
 
+/// What "copy" puts on the clipboard: title, summary, a markdown checklist and the tags.
+func clipboardText(_ s: Sticker) -> String {
+    var parts = [s.title]
+    if !s.summary.isEmpty && s.summary != s.title { parts.append(s.summary) }
+    if !s.todo.isEmpty {
+        parts.append(s.todo.enumerated().map { "- [\(s.done.contains($0.offset) ? "x" : " ")] \($0.element)" }.joined(separator: "\n"))
+    }
+    if !s.tags.isEmpty { parts.append(s.tags.map { "#" + tagLabel($0) }.joined(separator: " ")) }
+    return parts.joined(separator: "\n\n")
+}
+
 /// `#тег` words in a message, normalized, in order, without duplicates.
 func hashtags(in text: String) -> [String] {
     var seen: [String] = []
