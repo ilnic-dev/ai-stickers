@@ -49,6 +49,16 @@ func normalizeTag(_ s: String) -> String {
 
 private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 
+/// Cyrillic letters outnumber Latin ones. Told to Claude explicitly: left to judge mixed speech
+/// itself, it answers a mostly-Russian note in English.
+func isMostlyCyrillic(_ text: String) -> Bool {
+    var cyrillic = 0, latin = 0
+    for s in text.unicodeScalars where s.properties.isAlphabetic {
+        if (0x0400...0x04FF).contains(s.value) { cyrillic += 1 } else if s.isASCII { latin += 1 }
+    }
+    return cyrillic > latin
+}
+
 /// `#тег` words in a message, normalized, in order, without duplicates.
 func hashtags(in text: String) -> [String] {
     var seen: [String] = []

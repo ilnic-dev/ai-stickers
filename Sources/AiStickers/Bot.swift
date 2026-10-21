@@ -56,13 +56,17 @@ struct Bot {
         }
 
         do {
+            // "typing…" in the chat while whisper and Claude work (Telegram shows it for ~5 s).
+            let _: Bool? = try? await call("sendChatAction", ["chat_id": m.chat.id, "action": "typing"])
+            // "позже" hides an idea; only the user sets it (#позже or the panel), never Claude.
+            let vocabulary = await store.vocabulary.filter { $0 != laterTag }
             var raw = m.text ?? m.caption ?? ""
             if let file = m.voice ?? m.audio ?? m.video_note {
-                raw = [raw, try await transcribe(file.file_id)].filter { !$0.isEmpty }.joined(separator: "\n")
+                raw = [raw, try await transcribe(file.file_id, vocabulary: vocabulary)].filter { !$0.isEmpty }.joined(separator: "\n")
             }
             guard !raw.isEmpty else { return }
-            // "позже" hides an idea; only the user sets it (#позже or the panel), never Claude.
-            var sticker = summarize(raw, vocabulary: await store.vocabulary.filter { $0 != laterTag })
+            let _: Bool? = try? await call("sendChatAction", ["chat_id": m.chat.id, "action": "typing"])  // whisper took a while
+            var sticker = summarize(raw, vocabulary: vocabulary)
             let picked = hashtags(in: raw)
             sticker.tags = picked + sticker.tags.filter { !picked.contains($0) }
             await store.add(sticker)
@@ -72,7 +76,9 @@ struct Bot {
         }
     }
 
-    private func transcribe(_ fileId: String) async throws -> String {
+    /// Whisper's prompt primes it for Russian mixed with English and keeps those words in Latin script;
+    /// without it "usage в Claude" comes out as "юзидж в клад", even on large-v3.
+    private func transcribe(_ fileId: String, vocabulary: [String]) async throws -> String {
         let file: TGFile = try await call("getFile", ["file_id": fileId])
         let url = URL(string: "https://api.telegram.org/file/bot\(cfg.token)/\(file.file_path)")!
         let (data, _) = try await URLSession.shared.data(from: url)
@@ -84,7 +90,12 @@ struct Bot {
         try data.write(to: src)
 
         _ = try exec(cfg.ffmpeg, ["-y", "-loglevel", "error", "-i", src.path, "-ar", "16000", "-ac", "1", wav.path])
-        return try exec(cfg.whisper, ["-m", cfg.whisperModel, "-l", "auto", "-nt", "-np", "-f", wav.path])
+        // whisper keeps only the last ~224 tokens of a prompt; the list is most-used first, so cap it.
+        let terms = ["Claude", "ChatGPT", "GitHub", "pull request", "deploy", "build", "usage", "reset"]
+            + vocabulary.prefix(20) + [cfg.whisperPrompt].filter { !$0.isEmpty }
+        let prompt = "Голосовая заметка, русский вперемешку с английскими словами, английское латиницей: "
+            + terms.joined(separator: ", ") + "."
+        return try exec(cfg.whisper, ["-m", cfg.whisperModel, "-l", "auto", "-nt", "-np", "--prompt", prompt, "-f", wav.path])
             .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
     }
@@ -93,7 +104,12 @@ struct Bot {
     private func summarize(_ raw: String, vocabulary: [String]) -> Sticker {
         let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}}},"required":["title","summary","todo","tags"]}"#
         let system = """
-        You turn a raw idea (often a messy voice transcript) into a sticky note. Write in the language of the idea.
+        You turn a raw idea (often a messy voice transcript) into a sticky note.
+        Language: \(isMostlyCyrillic(raw)
+            ? "write title, summary and todo in the message's Cyrillic language (Russian unless clearly another one), never in English."
+            : "write title, summary and todo in the language most of the message is in.")
+        Speech often mixes Russian and English: keep English terms as they are (Claude, GitHub, deploy, pull request).
+        A transcript may contain misheard words: fix one only when the intended word is obvious from context.
         title: the idea in at most 6 words.
         summary: 1-3 clean sentences keeping every concrete detail (names, numbers, links, places).
         todo: only actions the author stated or clearly implied, as short imperatives; empty if none. Never invent tasks.
