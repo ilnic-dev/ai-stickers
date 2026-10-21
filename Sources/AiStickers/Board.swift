@@ -84,6 +84,31 @@ final class Board {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.layout() }
         }
+        // A card that leaves the list mid-drag (filtered, deleted) takes its gesture with it, and neither
+        // onEnded nor the GestureState reset fires. The mouse-up still reaches the app: clear the ghost then.
+        // Safe in any order: dragEnded pins from the mouse position and never reads `ghost`.
+        NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+            DispatchQueue.main.async { self?.dragCancelled() }
+            return event
+        }
+    }
+
+    private var toastFor: UUID?
+
+    /// Store changed: sync pinned windows; on a new deletion, put the undo toast on the screen with
+    /// the mouse, which is where the sticker was. Other changes leave a visible toast where it is.
+    func storeChanged() {
+        syncPinned()
+        if let id = store.removed?.sticker.id, id != toastFor {
+            toastFor = id
+            placeToast()
+        }
+    }
+
+    private func placeToast() {
+        let mouse = NSEvent.mouseLocation
+        let vf = (NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main)?.visibleFrame ?? screen
+        toast.setFrame(NSRect(x: vf.midX - toastSize.width / 2, y: vf.minY + 24, width: toastSize.width, height: toastSize.height), display: true)
     }
 
     /// Monitors and the Dock change at runtime: re-fit the edge windows and pull pinned stickers back on screen.
@@ -91,7 +116,7 @@ final class Board {
         let vf = screen
         tab.setFrame(NSRect(x: vf.minX, y: vf.maxY - 300, width: 64, height: 172), display: true)
         panel.setFrame(NSRect(x: vf.minX, y: vf.minY, width: panelInset + panelWidth + 40, height: vf.height), display: true)
-        toast.setFrame(NSRect(x: vf.midX - toastSize.width / 2, y: vf.minY + 24, width: toastSize.width, height: toastSize.height), display: true)
+        placeToast()
         for id in pinned.keys { pinnedMoved(id) }
     }
 
