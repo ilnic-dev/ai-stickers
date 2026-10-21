@@ -92,7 +92,7 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
 }
 
 @Test func mixedSpeechKeepsItsMainLanguage() {
-    #expect(dominantLanguage(of: "надо заресетить usage в Claude и проверить pull request") == "Russian")
-    #expect(dominantLanguage(of: "reset the Claude usage before midnight, потом билд") == "English")
-    #expect(dominantLanguage(of: "") == "English")
+    #expect(isMostlyCyrillic("надо заресетить usage в Claude и проверить pull request"))
+    #expect(!isMostlyCyrillic("reset the Claude usage before midnight, потом билд"))
+    #expect(!isMostlyCyrillic(""))
 }

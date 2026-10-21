@@ -65,6 +65,7 @@ struct Bot {
                 raw = [raw, try await transcribe(file.file_id, vocabulary: vocabulary)].filter { !$0.isEmpty }.joined(separator: "\n")
             }
             guard !raw.isEmpty else { return }
+            let _: Bool? = try? await call("sendChatAction", ["chat_id": m.chat.id, "action": "typing"])  // whisper took a while
             var sticker = summarize(raw, vocabulary: vocabulary)
             let picked = hashtags(in: raw)
             sticker.tags = picked + sticker.tags.filter { !picked.contains($0) }
@@ -89,8 +90,9 @@ struct Bot {
         try data.write(to: src)
 
         _ = try exec(cfg.ffmpeg, ["-y", "-loglevel", "error", "-i", src.path, "-ar", "16000", "-ac", "1", wav.path])
+        // whisper keeps only the last ~224 tokens of a prompt; the list is most-used first, so cap it.
         let terms = ["Claude", "ChatGPT", "GitHub", "pull request", "deploy", "build", "usage", "reset"]
-            + vocabulary + [cfg.whisperPrompt].filter { !$0.isEmpty }
+            + vocabulary.prefix(20) + [cfg.whisperPrompt].filter { !$0.isEmpty }
         let prompt = "Голосовая заметка, русский вперемешку с английскими словами, английское латиницей: "
             + terms.joined(separator: ", ") + "."
         return try exec(cfg.whisper, ["-m", cfg.whisperModel, "-l", "auto", "-nt", "-np", "--prompt", prompt, "-f", wav.path])
@@ -103,8 +105,10 @@ struct Bot {
         let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}}},"required":["title","summary","todo","tags"]}"#
         let system = """
         You turn a raw idea (often a messy voice transcript) into a sticky note.
-        Language: write title, summary and todo in \(dominantLanguage(of: raw)). Speech often mixes Russian and English:
-        keep English terms as they are (Claude, GitHub, deploy, pull request).
+        Language: \(isMostlyCyrillic(raw)
+            ? "write title, summary and todo in the message's Cyrillic language (Russian unless clearly another one), never in English."
+            : "write title, summary and todo in the language most of the message is in.")
+        Speech often mixes Russian and English: keep English terms as they are (Claude, GitHub, deploy, pull request).
         A transcript may contain misheard words: fix one only when the intended word is obvious from context.
         title: the idea in at most 6 words.
         summary: 1-3 clean sentences keeping every concrete detail (names, numbers, links, places).

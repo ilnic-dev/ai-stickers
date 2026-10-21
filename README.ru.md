@@ -86,7 +86,7 @@ Telegram  ──►  AI Stickers.app на маке
 | `TELEGRAM_BOT_TOKEN` | да | — |
 | `TELEGRAM_USER_ID` | да, после шага 4 | — |
 | `WHISPER_MODEL` | нет | `ggml-large-v3.bin` в `~/.cache/hyperframes/whisper/models/`, если есть, иначе `ggml-small.bin` там же |
-| `WHISPER_PROMPT` | нет | дополнительные слова для распознавания, например `Notion, Figma, мой-проект` |
+| `WHISPER_PROMPT` | нет | — (дополнительные слова для распознавания, например `Notion, Figma, мой-проект`) |
 | `FFMPEG` | нет | `/opt/homebrew/bin/ffmpeg` |
 | `WHISPER_CLI` | нет | `/opt/homebrew/bin/whisper-cli` |
 | `CLAUDE_BIN` | нет | `~/.local/bin/claude` |
