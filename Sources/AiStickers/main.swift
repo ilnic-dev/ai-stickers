@@ -99,8 +99,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)  // a menu bar app's alert would open behind other windows
         let alert = NSAlert()
         alert.messageText = tr("Запускать AI Stickers при входе в систему?", "Open AI Stickers when you log in?")
-        alert.informativeText = tr("Тогда иконка 📝 будет в меню-баре сразу после включения мака. Это можно поменять в меню иконки (правый клик).",
-                                   "Then the 📝 icon is in the menu bar right after your Mac starts. You can change this in the icon's menu (right-click).")
+        alert.informativeText = tr("Тогда иконка будет в меню-баре сразу после включения мака. Это можно поменять в меню иконки (правый клик).",
+                                   "Then its icon is in the menu bar right after your Mac starts. You can change this in the icon's menu (right-click).")
         alert.addButton(withTitle: tr("Запускать", "Open at login"))
         alert.addButton(withTitle: tr("Не надо", "Not now"))
         let yes = alert.runModal() == .alertFirstButtonReturn

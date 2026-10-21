@@ -1,15 +1,22 @@
 #!/bin/bash
-# Builds a universal (Apple Silicon + Intel) "AI Stickers.app" into a fresh temp dir and prints its path.
+# Builds "AI Stickers.app" into a fresh temp dir and prints its path.
 # Usage: scripts/build-app.sh [version]   (default 1.0.0)
+# UNIVERSAL=1 builds for Apple Silicon and Intel; that needs full Xcode, so only release.sh sets it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 version="${1:-1.0.0}"
 
-swift build -c release --arch arm64 --arch x86_64 >&2
+if [ "${UNIVERSAL:-}" = 1 ]; then
+    swift build -c release --arch arm64 --arch x86_64 >&2
+    binary=.build/apple/Products/Release/AiStickers
+else
+    swift build -c release >&2
+    binary=.build/release/AiStickers
+fi
 
 app="$(mktemp -d)/AI Stickers.app"  # fresh every time: no stale files in the signed bundle
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp .build/apple/Products/Release/AiStickers "$app/Contents/MacOS/AiStickers"
+cp "$binary" "$app/Contents/MacOS/AiStickers"
 
 iconset="$(mktemp -d)/AppIcon.iconset"
 mkdir -p "$iconset"
@@ -31,7 +38,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$version</string>
-    <key>CFBundleVersion</key><string>$(git rev-list --count HEAD)</string>
+    <key>CFBundleVersion</key><string>$(git rev-list --count HEAD 2>/dev/null || echo 1)</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
 </dict>

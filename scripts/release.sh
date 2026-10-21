@@ -4,6 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 version="${1:?usage: scripts/release.sh <version>}"
+version="${version#v}"  # "v1.0.0" and "1.0.0" both work
 tag="v$version"
 
 [ "$(git branch --show-current)" = main ] || { echo "release from main" >&2; exit 1; }
@@ -11,13 +12,15 @@ tag="v$version"
 git fetch -q origin
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "main is not in sync with origin" >&2; exit 1; }
 
-swift build && swift test >&2
+swift test >&2
 
-app="$(scripts/build-app.sh "$version")"
-zip="$(mktemp -d)/AI-Stickers-$version.zip"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+app="$(UNIVERSAL=1 scripts/build-app.sh "$version")"
+zip="$tmp/AI-Stickers-$version.zip"
 ditto -c -k --keepParent "$app" "$zip"  # ditto keeps the bundle's signature and attributes
 
-notes="$(mktemp)"
+notes="$tmp/notes.md"
 cat > "$notes" <<EOF
 ## Install
 
