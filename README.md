@@ -78,7 +78,7 @@ Telegram  ──►  AI Stickers.app on your Mac
 
 ## Configuration
 
-`~/.config/ai-stickers.env`, one `KEY=value` per line, `#` starts a comment.
+`~/.config/ai-stickers.env`, one `KEY=value` per line; lines starting with `#` are comments.
 
 | Key | Required | Default |
 |---|---|---|
@@ -97,7 +97,7 @@ Stickers are stored in `~/Library/Application Support/AiStickers/stickers.json`.
 ## Privacy
 
 - **Voice** is transcribed on your Mac; the audio goes nowhere else.
-- **Text** of each idea is sent to Claude through your own `claude` CLI to make the summary.
+- **Text** of each idea, plus your tag names, is sent to Claude through your own `claude` CLI to make the summary.
 - **Telegram** carries your messages, as with any bot. The token stays in your local config and is never logged.
 - **Stickers** are a local JSON file. No server, account or analytics.
 
