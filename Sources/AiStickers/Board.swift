@@ -10,7 +10,6 @@ final class BoardState {
     var showLater = false
     var hovered: UUID?
     var addingTag: UUID?  // card whose tag picker is open
-    var dragging = false
 }
 
 /// Floating, non-activating, transparent: clicks pass through everything SwiftUI doesn't draw.
@@ -73,24 +72,25 @@ final class Board {
         } else {
             state.hovered = nil
             state.addingTag = nil
-            state.dragging = false  // a drag cancelled mid-way never reaches dragEnded
-            ghost?.close()
+            ghost?.close()  // a drag cancelled mid-way never reaches dragEnded
             ghost = nil
             panel.orderOut(nil)
             tab.orderFrontRegardless()
         }
     }
 
+    /// Leaving the panel while dragging a card out is the point of the drag, not a reason to close.
     func mouseLeftPanel() {
-        if !state.locked && !state.dragging { setOpen(false) }
+        if !state.locked && ghost == nil { setOpen(false) }
     }
 
     func syncPinned() {
         let ids = Set(store.stickers.filter(\.pinned).map(\.id))
         for (id, p) in pinned where !ids.contains(id) {
             NotificationCenter.default.removeObserver(p.observer)
-            p.window.close()
             pinned[id] = nil
+            // Unpin/delete come from a button inside this window: close it after that event finishes.
+            DispatchQueue.main.async { p.window.close() }
         }
         for s in store.stickers where s.pinned && pinned[s.id] == nil {
             let w = Panel(NSRect(origin: .zero, size: pinWindow), PinnedView(id: s.id, store: store))
@@ -110,8 +110,7 @@ final class Board {
     // Dragging a card: a preview follows the mouse; dropped outside the panel, the sticker gets pinned there.
     // The grab point sits near the sticker's top-left corner.
     func dragChanged(_ id: UUID) {
-        if !state.dragging { state.dragging = true }  // @Observable notifies even on equal writes
-        if state.hovered != nil { state.hovered = nil }
+        if state.hovered != nil { state.hovered = nil }  // @Observable notifies even on equal writes
         if ghost == nil {
             let g = Panel(NSRect(origin: .zero, size: pinWindow), PinnedView(id: id, store: store, preview: true))
             g.ignoresMouseEvents = true
@@ -127,7 +126,6 @@ final class Board {
     func dragEnded(_ id: UUID) {
         ghost?.close()
         ghost = nil
-        state.dragging = false
         let p = NSEvent.mouseLocation
         guard !panelRect.contains(p) else { return }
         store.update(id) {

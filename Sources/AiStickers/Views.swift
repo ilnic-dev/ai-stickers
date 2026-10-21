@@ -112,7 +112,9 @@ struct PanelView: View {
 
             FlowLayout(spacing: 6) {
                 FilterChip(label: "Все", count: nil, color: nil, on: state.filter.isEmpty) { state.filter = [] }
-                ForEach(store.vocabulary.filter { counts[$0, default: 0] > 0 || state.filter.contains($0) }, id: \.self) { t in
+                // Selected tags stay visible even when no sticker has them any more, so they can be unselected.
+                let shown = store.vocabulary.filter { counts[$0, default: 0] > 0 } + state.filter.subtracting(Set(inPanel.flatMap(\.tags))).sorted()
+                ForEach(shown, id: \.self) { t in
                     FilterChip(label: t, count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
                         if state.filter.contains(t) { state.filter.remove(t) } else { state.filter.insert(t) }
                     }
@@ -164,7 +166,7 @@ struct PanelView: View {
         // The strip between the screen edge and the card counts as inside, or leaving toward the edge
         // would close the panel right over the tab and reopen it.
         .padding(.leading, 12)
-        .background(alignment: .leading) { Color.white.opacity(0.001).frame(width: 12) }
+        .background(alignment: .leading) { Color.white.opacity(0.02).frame(width: 12) }  // alpha 0 would pass the mouse through
         .onHover { if !$0 { board.mouseLeftPanel() } }
         .padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)

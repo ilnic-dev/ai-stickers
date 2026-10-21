@@ -54,7 +54,7 @@ func hashtags(in text: String) -> [String] {
     var seen: [String] = []
     for m in text.matches(of: hashtagPattern) {
         let tag = normalizeTag(String(m.output[1].substring ?? ""))
-        if !seen.contains(tag) { seen.append(tag) }
+        if !tag.isEmpty && !seen.contains(tag) { seen.append(tag) }
     }
     return seen
 }
