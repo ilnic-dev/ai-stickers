@@ -4,5 +4,8 @@ import PackageDescription
 let package = Package(
     name: "AiStickers",
     platforms: [.macOS(.v14)],
-    targets: [.executableTarget(name: "AiStickers")]
+    targets: [
+        .executableTarget(name: "AiStickers"),
+        .testTarget(name: "AiStickersTests", dependencies: ["AiStickers"]),
+    ]
 )

@@ -19,7 +19,7 @@ private struct Message: Decodable {
     let video_note: FileRef?
 }
 private struct TGFile: Decodable { let file_path: String }
-private struct Note: Decodable { let title: String; let summary: String; let todo: [String] }
+private struct Note: Decodable { let title: String; let summary: String; let todo: [String]; let tags: [String] }
 private struct ClaudeOutput: Decodable { let structured_output: Note? }
 
 /// Telegram long polling is the queue: ideas sent while the Mac sleeps wait on Telegram's side (up to 24h).
@@ -37,7 +37,7 @@ struct Bot {
                     offset = u.update_id + 1  // confirmed on the next getUpdates, so a crash mid-idea re-delivers it
                 }
             } catch {
-                print("poll:", error)
+                print("poll:", describe(error))
                 try? await Task.sleep(for: .seconds(5))
             }
         }
@@ -61,11 +61,14 @@ struct Bot {
                 raw = [raw, try await transcribe(file.file_id)].filter { !$0.isEmpty }.joined(separator: "\n")
             }
             guard !raw.isEmpty else { return }
-            let sticker = summarize(raw)
+            // "позже" hides an idea; only the user sets it (#позже or the panel), never Claude.
+            var sticker = summarize(raw, vocabulary: await store.vocabulary.filter { $0 != laterTag })
+            let picked = hashtags(in: raw)
+            sticker.tags = picked + sticker.tags.filter { !picked.contains($0) }
             await store.add(sticker)
-            await reply(m.chat.id, "📌 \(sticker.title)")
+            await reply(m.chat.id, (["📌 \(sticker.title)"] + sticker.tags.map { "#\($0)" }).joined(separator: " "))
         } catch {
-            await reply(m.chat.id, "⚠️ Не получилось: \(error)")
+            await reply(m.chat.id, "⚠️ Не получилось: \(describe(error))")
         }
     }
 
@@ -87,13 +90,14 @@ struct Bot {
     }
 
     /// Never loses the idea: if Claude fails, the raw text becomes the sticker.
-    private func summarize(_ raw: String) -> Sticker {
-        let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}}},"required":["title","summary","todo"]}"#
+    private func summarize(_ raw: String, vocabulary: [String]) -> Sticker {
+        let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}}},"required":["title","summary","todo","tags"]}"#
         let system = """
         You turn a raw idea (often a messy voice transcript) into a sticky note. Write in the language of the idea.
         title: the idea in at most 6 words.
         summary: 1-3 clean sentences keeping every concrete detail (names, numbers, links, places).
         todo: only actions the author stated or clearly implied, as short imperatives; empty if none. Never invent tasks.
+        tags: 0-2 tags copied exactly from this list, only when they clearly fit; never new ones: \(vocabulary.joined(separator: ", "))
         """
         do {
             let out = try exec(cfg.claude, [
@@ -102,7 +106,9 @@ struct Bot {
                 "--json-schema", schema, "--output-format", "json", raw,
             ], cwd: FileManager.default.temporaryDirectory)
             if let n = try JSONDecoder().decode(ClaudeOutput.self, from: Data(out.utf8)).structured_output {
-                return Sticker(title: n.title, summary: n.summary, todo: n.todo, raw: raw)
+                var tags: [String] = []
+                for t in n.tags.map(normalizeTag) where vocabulary.contains(t) && !tags.contains(t) { tags.append(t) }
+                return Sticker(title: n.title, summary: n.summary, todo: n.todo, raw: raw, tags: Array(tags.prefix(2)))
             }
         } catch {
             print("claude:", error)
@@ -125,6 +131,12 @@ struct Bot {
         guard r.ok, let result = r.result else { throw BotError("\(method): \(r.description ?? "unknown error")") }
         return result
     }
+}
+
+/// URLError carries the request URL, which contains the bot token: never print or send it.
+private func describe(_ error: Error) -> String {
+    if let e = error as? URLError { return "ошибка сети (\(e.code.rawValue))" }
+    return "\(error)"
 }
 
 // ponytail: blocks a cooperative thread while the tool runs; fine for one serial poll loop.
