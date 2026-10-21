@@ -43,16 +43,16 @@ final class Board {
     let state = BoardState()
     private var tab: Panel!
     private var panel: Panel!
-    private var pinned: [UUID: Panel] = [:]
+    private var pinned: [UUID: (window: Panel, observer: NSObjectProtocol)] = [:]
     private var ghost: Panel?
 
     init(store: Store) { self.store = store }
 
     private var screen: NSRect { NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900) }
 
-    /// The visible panel card inside its (wider, transparent) window.
+    /// The panel strip from the screen edge to the card's right side; dropping here does not pin.
     private var panelRect: NSRect {
-        NSRect(x: screen.minX + panelInset, y: screen.minY, width: panelWidth, height: screen.height)
+        NSRect(x: panel.frame.minX, y: panel.frame.minY, width: panelInset + panelWidth, height: panel.frame.height)
     }
 
     func start() {
@@ -73,6 +73,9 @@ final class Board {
         } else {
             state.hovered = nil
             state.addingTag = nil
+            state.dragging = false  // a drag cancelled mid-way never reaches dragEnded
+            ghost?.close()
+            ghost = nil
             panel.orderOut(nil)
             tab.orderFrontRegardless()
         }
@@ -84,8 +87,9 @@ final class Board {
 
     func syncPinned() {
         let ids = Set(store.stickers.filter(\.pinned).map(\.id))
-        for (id, w) in pinned where !ids.contains(id) {
-            w.close()
+        for (id, p) in pinned where !ids.contains(id) {
+            NotificationCenter.default.removeObserver(p.observer)
+            p.window.close()
             pinned[id] = nil
         }
         for s in store.stickers where s.pinned && pinned[s.id] == nil {
@@ -93,20 +97,21 @@ final class Board {
             w.isMovableByWindowBackground = true
             w.setFrameTopLeftPoint(NSPoint(x: (s.left ?? 400) - pinMargin, y: (s.top ?? 700) + pinMargin))
             w.orderFrontRegardless()
-            NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: w, queue: .main) { [weak self] _ in
+            let observer = NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: w, queue: .main) { [weak self, weak w] _ in
                 MainActor.assumeIsolated {
+                    guard let w else { return }
                     self?.store.place(s.id, left: w.frame.minX + pinMargin, top: w.frame.maxY - pinMargin)
                 }
             }
-            pinned[s.id] = w
+            pinned[s.id] = (w, observer)
         }
     }
 
     // Dragging a card: a preview follows the mouse; dropped outside the panel, the sticker gets pinned there.
     // The grab point sits near the sticker's top-left corner.
     func dragChanged(_ id: UUID) {
-        state.dragging = true
-        state.hovered = nil
+        if !state.dragging { state.dragging = true }  // @Observable notifies even on equal writes
+        if state.hovered != nil { state.hovered = nil }
         if ghost == nil {
             let g = Panel(NSRect(origin: .zero, size: pinWindow), PinnedView(id: id, store: store, preview: true))
             g.ignoresMouseEvents = true

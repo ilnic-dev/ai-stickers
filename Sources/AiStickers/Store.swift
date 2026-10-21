@@ -39,13 +39,15 @@ extension Sticker {
 /// The built-in tag for ideas that are not relevant yet: hidden from the panel by default.
 let laterTag = "позже"
 
+/// Lowercase, one word: "#Новый тег," → "новый-тег", so every tag round-trips as a #hashtag.
 func normalizeTag(_ s: String) -> String {
-    s.trimmingCharacters(in: .whitespacesAndNewlines)
-        .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        .lowercased()
+    s.lowercased()
+        .split { $0.isWhitespace || $0 == "," }
+        .joined(separator: "-")
+        .trimmingCharacters(in: CharacterSet(charactersIn: "#-_"))
 }
 
-private let hashtagPattern = try! Regex(#"(?:^|[^\p{L}\p{N}])#([\p{L}\p{N}_-]+)"#)
+private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 
 /// `#тег` words in a message, normalized, in order, without duplicates.
 func hashtags(in text: String) -> [String] {

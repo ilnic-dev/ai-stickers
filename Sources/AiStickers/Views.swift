@@ -112,7 +112,7 @@ struct PanelView: View {
 
             FlowLayout(spacing: 6) {
                 FilterChip(label: "Все", count: nil, color: nil, on: state.filter.isEmpty) { state.filter = [] }
-                ForEach(store.vocabulary.filter { counts[$0, default: 0] > 0 }, id: \.self) { t in
+                ForEach(store.vocabulary.filter { counts[$0, default: 0] > 0 || state.filter.contains($0) }, id: \.self) { t in
                     FilterChip(label: t, count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
                         if state.filter.contains(t) { state.filter.remove(t) } else { state.filter.insert(t) }
                     }
@@ -161,8 +161,11 @@ struct PanelView: View {
         .frame(maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.panel).shadow(color: .black.opacity(0.35), radius: 25, y: 18))
-        .onHover { if !$0 { board.mouseLeftPanel() } }
+        // The strip between the screen edge and the card counts as inside, or leaving toward the edge
+        // would close the panel right over the tab and reopen it.
         .padding(.leading, 12)
+        .background(alignment: .leading) { Color.white.opacity(0.001).frame(width: 12) }
+        .onHover { if !$0 { board.mouseLeftPanel() } }
         .padding(.vertical, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }

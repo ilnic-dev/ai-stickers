@@ -48,9 +48,11 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
 
 @Test func tagsAreNormalized() {
     #expect(normalizeTag("  #Видео ") == "видео")
+    #expect(normalizeTag("Новый тег,") == "новый-тег")
 }
 
 @Test func hashtagsAreParsed() {
     #expect(hashtags(in: "снять ролик #Видео и #бизнес, ещё раз #видео") == ["видео", "бизнес"])
     #expect(hashtags(in: "без тегов, но с C# и 100%").isEmpty)
+    #expect(hashtags(in: "цены https://site.com/page#pricing #идея-") == ["идея"])
 }
