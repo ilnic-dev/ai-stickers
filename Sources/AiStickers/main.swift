@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
-        store.onChange = { [unowned self] in board.syncPinned() }
+        store.onChange = { [unowned self] in board.storeChanged() }
         board.start()
 
         if let cfg = Config.load() {
