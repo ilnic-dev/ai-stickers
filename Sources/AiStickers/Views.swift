@@ -386,10 +386,12 @@ struct PinnedView: View {
     let store: Store
     var preview = false
     @State private var hovered = false
+    @State private var moving = false
 
     var body: some View {
         if let s = store.stickers.first(where: { $0.id == id }) {
-            let expanded = hovered && !preview
+            // Stays open while being moved, or it would shrink and slide the handle out from under the cursor.
+            let expanded = (hovered || moving) && !preview
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 6) {
                     Text(s.title)
@@ -400,7 +402,7 @@ struct PinnedView: View {
                         IconButton("pin.slash", label: "Вернуть в панель") { store.update(id) { $0.pinned = false } }
                         IconButton("trash", label: "Удалить") { store.remove(id) }
                     }
-                    MoveHandle()
+                    MoveHandle(moving: $moving)
                 }
                 Text(s.summary)
                     .font(.system(size: 13))
@@ -469,26 +471,51 @@ struct UndoToast: View {
 
 /// Grab it to move the sticker's window anywhere on screen.
 struct MoveHandle: View {
+    @Binding var moving: Bool
+
     var body: some View {
         Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Palette.meta)
             .frame(width: 28, height: 28)
             .background(Palette.meta.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(WindowDragArea())
+            .overlay(WindowDragArea(moving: $moving))
             .help("Перетащить")
             .accessibilityLabel("Перетащить стикер")
     }
 }
 
-/// Native window drag: the window follows the mouse with no lag, and the move is saved on didMove.
+/// Moves its window with the mouse. Tracked by hand rather than with performDrag, which drops the
+/// hover state mid-drag; the new position is saved on didMove.
 struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ view: NSView, context: Context) {}
+    @Binding var moving: Bool
+
+    func makeNSView(context: Context) -> DragView { DragView() }
+    func updateNSView(_ view: DragView, context: Context) { view.onMoving = { moving = $0 } }
 
     final class DragView: NSView {
-        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+        var onMoving: (Bool) -> Void = { _ in }
+        private var start: (mouse: NSPoint, origin: NSPoint)?
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+
+        override func mouseDown(with event: NSEvent) {
+            guard let window else { return }
+            start = (NSEvent.mouseLocation, window.frame.origin)
+            onMoving(true)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let window, let start else { return }
+            let p = NSEvent.mouseLocation
+            window.setFrameOrigin(NSPoint(x: start.origin.x + p.x - start.mouse.x, y: start.origin.y + p.y - start.mouse.y))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            start = nil
+            onMoving(false)
+        }
     }
 }
 

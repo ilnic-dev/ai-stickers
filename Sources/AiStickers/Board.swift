@@ -25,8 +25,14 @@ final class Panel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false  // SwiftUI draws the shadows
-        contentView = NSHostingView(rootView: content)
+        contentView = FirstClickHostingView(rootView: content)
     }
+}
+
+/// The panels never activate the app, so without this the first click on them is spent making
+/// the window key and a card can't be grabbed until the second try.
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// Room around a pinned sticker for its shadow and for growing on hover.
