@@ -48,6 +48,8 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     let screens = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1000, y: 0, width: 800, height: 600)]
     let card = CGSize(width: 220, height: 100)
     #expect(clampTopLeft(CGPoint(x: 300, y: 500), card: card, screens: screens) == CGPoint(x: 300, y: 500))
+    #expect(clampTopLeft(CGPoint(x: 900, y: 500), card: card, screens: screens) == CGPoint(x: 900, y: 500))  // across the seam
+    #expect(clampTopLeft(CGPoint(x: 900, y: 700), card: card, screens: screens) == CGPoint(x: 780, y: 700))  // half off the top-right
     // A monitor that used to be on the right is gone: back onto the nearest edge of the second screen.
     #expect(clampTopLeft(CGPoint(x: 2500, y: 700), card: card, screens: screens) == CGPoint(x: 1580, y: 600))
     #expect(clampTopLeft(CGPoint(x: -400, y: 50), card: card, screens: screens) == CGPoint(x: 0, y: 100))

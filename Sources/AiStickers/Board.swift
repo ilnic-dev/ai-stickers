@@ -157,7 +157,8 @@ final class Board {
         guard let g = ghost else { return }
         g.close()
         ghost = nil
-        if state.open && !panel.frame.contains(NSEvent.mouseLocation) { mouseLeftPanel() }
+        // The window is wider and taller than the card (shadow room); only the card and the edge strip count as inside.
+        if state.open && !panelRect.insetBy(dx: 0, dy: 24).contains(NSEvent.mouseLocation) { mouseLeftPanel() }
     }
 
     func dragEnded(_ id: UUID) {

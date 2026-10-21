@@ -430,32 +430,37 @@ struct UndoToast: View {
     let store: Store
 
     var body: some View {
-        if let r = store.removed {
-            HStack(spacing: 12) {
-                Text("Стикер «\(r.sticker.title)» удалён")
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button("Отменить") { store.undoRemove() }
-                    .buttonStyle(.plain)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Palette.sticky)
-                    .padding(.horizontal, 10)
-                    .frame(height: 30)
-                    .contentShape(Rectangle())
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(Palette.panel)
-            .padding(.leading, 16)
-            .padding(.trailing, 6)
-            .frame(height: 44)
-            .background(Palette.panelInk, in: Capsule())
-            .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .task(id: r.sticker.id) {
-                guard (try? await Task.sleep(for: .seconds(5))) != nil else { return }
-                store.forgetRemoved(r.sticker.id)
-            }
+        // The frame stays outside the `if`: NSHostingView sizes the window to its content, and empty content is 0×0.
+        ZStack {
+            if let r = store.removed { toast(r.sticker) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func toast(_ s: Sticker) -> some View {
+        HStack(spacing: 12) {
+            Text("Стикер «\(s.title)» удалён")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Отменить") { store.undoRemove() }
+                .buttonStyle(.plain)
+                .fontWeight(.semibold)
+                .foregroundStyle(Palette.sticky)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .contentShape(Rectangle())
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(Palette.panel)
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
+        .frame(height: 44)
+        .background(Palette.panelInk, in: Capsule())
+        .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+        .padding(.horizontal, 12)
+        .task(id: s.id) {
+            guard (try? await Task.sleep(for: .seconds(5))) != nil else { return }
+            store.forgetRemoved(s.id)
         }
     }
 }

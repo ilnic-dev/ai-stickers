@@ -71,9 +71,11 @@ func panelStickers(_ all: [Sticker], filter: Set<String>, showLater: Bool) -> [S
     .sorted { $0.created > $1.created }
 }
 
-/// Where a pinned sticker's top-left corner may sit: inside the screen nearest to it, with room for the card.
-/// Cocoa coordinates: y grows upward, so the card hangs below `p`.
+/// Where a pinned sticker's top-left corner may sit: unchanged while the whole card is on screens (even across
+/// a seam), otherwise inside the screen nearest to it. Cocoa coordinates: y grows upward, so the card hangs below `p`.
 func clampTopLeft(_ p: CGPoint, card: CGSize, screens: [CGRect]) -> CGPoint {
+    let corners = [p, CGPoint(x: p.x + card.width, y: p.y), CGPoint(x: p.x, y: p.y - card.height), CGPoint(x: p.x + card.width, y: p.y - card.height)]
+    if corners.allSatisfy({ c in screens.contains { $0.contains(c) } }) { return p }
     func distance(_ r: CGRect) -> CGFloat { hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY)) }
     guard let s = screens.min(by: { distance($0) < distance($1) }) else { return p }
     return CGPoint(x: max(min(p.x, s.maxX - card.width), s.minX), y: min(max(p.y, s.minY + card.height), s.maxY))
