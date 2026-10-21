@@ -9,6 +9,7 @@ struct Config {
     let ffmpeg: String
     let whisper: String
     let whisperModel: String
+    let whisperPrompt: String  // extra words whisper should expect, e.g. names and jargon you use
     let claude: String
 
     // KEY=VALUE lines; a GUI app gets no shell PATH, so binaries are absolute paths.
@@ -26,7 +27,11 @@ struct Config {
             userId: env["TELEGRAM_USER_ID"].flatMap { Int64($0) },
             ffmpeg: env["FFMPEG", default: "/opt/homebrew/bin/ffmpeg"],
             whisper: env["WHISPER_CLI", default: "/opt/homebrew/bin/whisper-cli"],
-            whisperModel: env["WHISPER_MODEL", default: "\(home)/.cache/hyperframes/whisper/models/ggml-small.bin"],
+            // large-v3 handles Russian mixed with English far better than small; use it when it's there.
+            whisperModel: env["WHISPER_MODEL"] ?? ["large-v3", "small"]
+                .map { "\(home)/.cache/hyperframes/whisper/models/ggml-\($0).bin" }
+                .first { FileManager.default.fileExists(atPath: $0) } ?? "\(home)/.cache/hyperframes/whisper/models/ggml-small.bin",
+            whisperPrompt: env["WHISPER_PROMPT", default: ""],
             claude: env["CLAUDE_BIN", default: "\(home)/.local/bin/claude"]
         )
     }

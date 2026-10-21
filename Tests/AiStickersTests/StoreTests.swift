@@ -90,3 +90,9 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(hashtags(in: "цены https://site.com/page#pricing #идея-") == ["идея"])
     #expect(hashtags(in: "#- #_").isEmpty)
 }
+
+@Test func mixedSpeechKeepsItsMainLanguage() {
+    #expect(dominantLanguage(of: "надо заресетить usage в Claude и проверить pull request") == "Russian")
+    #expect(dominantLanguage(of: "reset the Claude usage before midnight, потом билд") == "English")
+    #expect(dominantLanguage(of: "") == "English")
+}

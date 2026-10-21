@@ -32,6 +32,7 @@ Telegram  ──►  AI Stickers.app on your Mac
 - **Edge tab** at the left screen edge shows how many ideas are open. Hover it to slide out the panel.
 - **Cards expand on hover**: summary, a checklist (ticks are saved), tags, and delete with a few seconds to undo.
 - **Tags.** Filter chips at the top of the panel; pick several at once. On a card, `×` removes a tag and `+ тег` adds an existing or a new one.
+- **Mixed Russian and English voice notes** come out right: English terms stay in Latin script, and the sticker is written in the language you mostly spoke.
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.
 - **«позже» (later)** is a built-in tag that hides ideas that are not relevant yet; one click shows them again.
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
@@ -43,7 +44,7 @@ Telegram  ──►  AI Stickers.app on your Mac
 - macOS 14 or later
 - Xcode or the Command Line Tools (to build)
 - [Homebrew](https://brew.sh): `brew install ffmpeg whisper-cpp`
-- A whisper.cpp model, e.g. multilingual [`ggml-small.bin`](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
+- A whisper.cpp model from [huggingface.co/ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp/tree/main): `ggml-large-v3.bin` (3 GB, recommended: handles Russian mixed with English) or `ggml-small.bin` (fast, weaker on mixed speech)
 - [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` on your machine)
 - A Telegram account
 
@@ -84,7 +85,8 @@ Telegram  ──►  AI Stickers.app on your Mac
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | yes | — |
 | `TELEGRAM_USER_ID` | yes, after step 4 | — |
-| `WHISPER_MODEL` | no | `~/.cache/hyperframes/whisper/models/ggml-small.bin` |
+| `WHISPER_MODEL` | no | `ggml-large-v3.bin` in `~/.cache/hyperframes/whisper/models/` if present, else `ggml-small.bin` there |
+| `WHISPER_PROMPT` | no | extra words whisper should expect, e.g. `Notion, Figma, my-project` |
 | `FFMPEG` | no | `/opt/homebrew/bin/ffmpeg` |
 | `WHISPER_CLI` | no | `/opt/homebrew/bin/whisper-cli` |
 | `CLAUDE_BIN` | no | `~/.local/bin/claude` |

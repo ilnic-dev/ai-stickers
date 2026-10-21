@@ -49,6 +49,16 @@ func normalizeTag(_ s: String) -> String {
 
 private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 
+/// "Russian" when Cyrillic letters outnumber Latin ones, else "English". Told to Claude explicitly:
+/// left to judge mixed speech itself, it answers a mostly-Russian note in English.
+func dominantLanguage(of text: String) -> String {
+    var cyrillic = 0, latin = 0
+    for s in text.unicodeScalars where s.properties.isAlphabetic {
+        if (0x0400...0x04FF).contains(s.value) { cyrillic += 1 } else if s.isASCII { latin += 1 }
+    }
+    return cyrillic > latin ? "Russian" : "English"
+}
+
 /// `#тег` words in a message, normalized, in order, without duplicates.
 func hashtags(in text: String) -> [String] {
     var seen: [String] = []

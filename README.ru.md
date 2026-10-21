@@ -32,6 +32,7 @@ Telegram  ──►  AI Stickers.app на маке
 - **Язычок у левого края** показывает число актуальных идей. Наведи на него, и выдвинется панель.
 - **Карточка раскрывается при наведении**: сводка, задачи с чекбоксами (галочки сохраняются), теги и удаление с возможностью отменить его в течение нескольких секунд.
 - **Теги.** Чипы-фильтры в шапке панели, можно выбрать несколько. На карточке `×` убирает тег, «+ тег» добавляет существующий или новый.
+- **Голосовые на смеси русского и английского** распознаются правильно: английские термины остаются латиницей, а стикер пишется на языке, на котором ты в основном говорил.
 - **`#тег` в сообщении** ставит этот тег сразу. Claude добавит ещё до двух, но только из тех, что у тебя уже есть.
 - **«позже»** — встроенный тег для неактуального: такие идеи скрыты, одна кнопка показывает их снова.
 - **Закрепление на столе.** Вытащи карточку из панели, и она станет отдельным стикером. Двигай его за ручку ✥, наведи, чтобы увидеть задачи, одной кнопкой верни в панель.
@@ -43,7 +44,7 @@ Telegram  ──►  AI Stickers.app на маке
 - macOS 14 или новее
 - Xcode или Command Line Tools (для сборки)
 - [Homebrew](https://brew.sh): `brew install ffmpeg whisper-cpp`
-- Модель whisper.cpp, например многоязычная [`ggml-small.bin`](https://huggingface.co/ggerganov/whisper.cpp/tree/main)
+- Модель whisper.cpp с [huggingface.co/ggerganov/whisper.cpp](https://huggingface.co/ggerganov/whisper.cpp/tree/main): `ggml-large-v3.bin` (3 ГБ, рекомендуется: понимает русский вперемешку с английским) или `ggml-small.bin` (быстрая, но хуже на смешанной речи)
 - Установленный и залогиненный [Claude Code](https://claude.com/claude-code) (команда `claude`)
 - Аккаунт в Telegram
 
@@ -84,7 +85,8 @@ Telegram  ──►  AI Stickers.app на маке
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | да | — |
 | `TELEGRAM_USER_ID` | да, после шага 4 | — |
-| `WHISPER_MODEL` | нет | `~/.cache/hyperframes/whisper/models/ggml-small.bin` |
+| `WHISPER_MODEL` | нет | `ggml-large-v3.bin` в `~/.cache/hyperframes/whisper/models/`, если есть, иначе `ggml-small.bin` там же |
+| `WHISPER_PROMPT` | нет | дополнительные слова для распознавания, например `Notion, Figma, мой-проект` |
 | `FFMPEG` | нет | `/opt/homebrew/bin/ffmpeg` |
 | `WHISPER_CLI` | нет | `/opt/homebrew/bin/whisper-cli` |
 | `CLAUDE_BIN` | нет | `~/.local/bin/claude` |
