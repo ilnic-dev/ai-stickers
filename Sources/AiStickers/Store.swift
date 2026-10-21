@@ -51,6 +51,8 @@ func normalizeTag(_ s: String) -> String {
 // MARK: - Interface language
 
 /// The interface language, picked in the menu bar. Stickers keep the language they were spoken in.
+// @unchecked: Bot reads `english` off the main thread while the menu may flip it; a stale Bool
+// for one reply is harmless.
 @Observable
 final class Lang: @unchecked Sendable {
     static let shared = Lang()
@@ -146,6 +148,13 @@ final class Store {
         guard let data = try? Data(contentsOf: self.url) else { return }
         do {
             stickers = try JSONDecoder().decode([Sticker].self, from: data)
+            // "later" became the English name of the built-in tag; fold old copies into it.
+            for i in stickers.indices where stickers[i].tags.contains("later") {
+                stickers[i].tags = stickers[i].tags.reduce(into: []) { t, x in
+                    let n = normalizeTag(x)
+                    if !t.contains(n) { t.append(n) }
+                }
+            }
         } catch {
             // Keep an unreadable file instead of overwriting it with an empty list.
             try? FileManager.default.moveItem(at: self.url, to: self.url.appendingPathExtension("broken-\(Int(Date().timeIntervalSince1970))"))

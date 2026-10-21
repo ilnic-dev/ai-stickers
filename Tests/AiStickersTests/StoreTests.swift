@@ -101,3 +101,11 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(normalizeTag("#Later") == laterTag)
     #expect(hashtags(in: "посмотреть потом #later") == [laterTag])
 }
+
+@Test @MainActor func oldLaterTagIsFoldedIntoBuiltIn() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("stickers-\(UUID()).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let old = #"[{"id":"11111111-1111-1111-1111-111111111111","created":0,"title":"t","summary":"s","todo":[],"raw":"r","tags":["later","видео","позже"]}]"#
+    try Data(old.utf8).write(to: url)
+    #expect(Store(url: url).stickers.first?.tags == [laterTag, "видео"])
+}
