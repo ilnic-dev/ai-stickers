@@ -86,18 +86,23 @@ final class Board {
         }
         // A card that leaves the list mid-drag (filtered, deleted) takes its gesture with it, and neither
         // onEnded nor the GestureState reset fires. The mouse-up still reaches the app: clear the ghost then.
-        // Async, so a normal drop's dragEnded runs first and this finds nothing to do.
+        // Safe in any order: dragEnded pins from the mouse position and never reads `ghost`.
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
             DispatchQueue.main.async { self?.dragCancelled() }
             return event
         }
     }
 
-    /// Store changed: sync pinned windows and keep the undo toast on the screen where the mouse is,
-    /// which is where the sticker was just deleted.
+    private var toastFor: UUID?
+
+    /// Store changed: sync pinned windows; on a new deletion, put the undo toast on the screen with
+    /// the mouse, which is where the sticker was. Other changes leave a visible toast where it is.
     func storeChanged() {
         syncPinned()
-        placeToast()
+        if let id = store.removed?.sticker.id, id != toastFor {
+            toastFor = id
+            placeToast()
+        }
     }
 
     private func placeToast() {
