@@ -96,3 +96,8 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(!isMostlyCyrillic("reset the Claude usage before midnight, потом билд"))
     #expect(!isMostlyCyrillic(""))
 }
+
+@Test func laterHasAnEnglishName() {
+    #expect(normalizeTag("#Later") == laterTag)
+    #expect(hashtags(in: "посмотреть потом #later") == [laterTag])
+}

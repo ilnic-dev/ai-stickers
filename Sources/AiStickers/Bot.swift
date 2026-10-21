@@ -46,12 +46,14 @@ struct Bot {
     private func handle(_ m: Message) async {
         guard let from = m.from?.id else { return }
         guard let owner = cfg.userId else {
-            await reply(m.chat.id, "Твой Telegram ID: \(from)\nДобавь строку TELEGRAM_USER_ID=\(from) в \(Config.path) и перезапусти приложение.")
+            await reply(m.chat.id, tr("Твой Telegram ID: \(from)\nДобавь строку TELEGRAM_USER_ID=\(from) в \(Config.path) и перезапусти приложение.",
+                                     "Your Telegram ID: \(from)\nAdd the line TELEGRAM_USER_ID=\(from) to \(Config.path) and restart the app."))
             return
         }
         guard from == owner else { return }
         if m.text?.hasPrefix("/") == true {
-            await reply(m.chat.id, "Кидай мысль текстом или голосом — она станет стикером на маке.")
+            await reply(m.chat.id, tr("Кидай мысль текстом или голосом — она станет стикером на маке.",
+                                     "Send a thought as text or voice — it becomes a sticky note on your Mac."))
             return
         }
 
@@ -70,9 +72,9 @@ struct Bot {
             let picked = hashtags(in: raw)
             sticker.tags = picked + sticker.tags.filter { !picked.contains($0) }
             await store.add(sticker)
-            await reply(m.chat.id, (["📌 \(sticker.title)"] + sticker.tags.map { "#\($0)" }).joined(separator: " "))
+            await reply(m.chat.id, (["📌 \(sticker.title)"] + sticker.tags.map { "#" + tagLabel($0) }).joined(separator: " "))
         } catch {
-            await reply(m.chat.id, "⚠️ Не получилось: \(describe(error))")
+            await reply(m.chat.id, tr("⚠️ Не получилось: ", "⚠️ Failed: ") + describe(error))
         }
     }
 
@@ -151,7 +153,7 @@ struct Bot {
 
 /// URLError carries the request URL, which contains the bot token: never print or send it.
 private func describe(_ error: Error) -> String {
-    if let e = error as? URLError { return "ошибка сети (\(e.code.rawValue))" }
+    if let e = error as? URLError { return tr("ошибка сети", "network error") + " (\(e.code.rawValue))" }
     return "\(error)"
 }
 

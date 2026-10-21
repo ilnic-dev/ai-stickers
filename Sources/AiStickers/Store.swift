@@ -41,11 +41,38 @@ let laterTag = "позже"
 
 /// Lowercase, one word: "#Новый тег," → "новый-тег", so every tag round-trips as a #hashtag.
 func normalizeTag(_ s: String) -> String {
-    s.lowercased()
+    let tag = s.lowercased()
         .split { $0.isWhitespace || $0 == "," }
         .joined(separator: "-")
         .trimmingCharacters(in: CharacterSet(charactersIn: "#-_"))
+    return tag == "later" ? laterTag : tag  // the English name of the built-in tag
 }
+
+// MARK: - Interface language
+
+/// The interface language, picked in the menu bar. Stickers keep the language they were spoken in.
+@Observable
+final class Lang: @unchecked Sendable {
+    static let shared = Lang()
+    private static let key = "uiLanguage"
+    private(set) var english: Bool
+
+    private init() {
+        let saved = UserDefaults.standard.string(forKey: Lang.key)
+        english = (saved ?? (Locale.preferredLanguages.first?.hasPrefix("ru") == true ? "ru" : "en")) == "en"
+    }
+
+    func set(english: Bool) {
+        self.english = english
+        UserDefaults.standard.set(english ? "en" : "ru", forKey: Lang.key)
+    }
+}
+
+/// The string for the current interface language: `tr("Идеи", "Ideas")`.
+func tr(_ ru: String, _ en: String) -> String { Lang.shared.english ? en : ru }
+
+/// How a tag is shown: the built-in one gets its English name in the English interface.
+func tagLabel(_ tag: String) -> String { tag == laterTag ? tr(laterTag, "later") : tag }
 
 private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 

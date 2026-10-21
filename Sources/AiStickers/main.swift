@@ -42,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = Store()
     lazy var board = Board(store: store)
     var status: NSStatusItem!
-    private let loginItem = NSMenuItem(title: "Запускать при входе", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+    private var loginItem = NSMenuItem()
+    private var configMissing = false
 
     /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
     private var bundleID: String? { Bundle.main.bundleIdentifier }
@@ -61,30 +62,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
-        let menu = NSMenu()
-        menu.autoenablesItems = false  // so the disabled login item stays disabled under `swift run`
-        status.menu = menu
-
         store.onChange = { [unowned self] in board.syncPinned() }
         board.start()
 
         if let cfg = Config.load() {
             Task { await Bot(cfg: cfg, store: store).run() }
         } else {
-            menu.addItem(withTitle: "⚠️ Нет TELEGRAM_BOT_TOKEN в \(Config.path)", action: nil, keyEquivalent: "")
+            configMissing = true
+        }
+        buildMenu()
+    }
+
+    /// Rebuilt whenever the interface language changes; menu titles are plain strings.
+    private func buildMenu() {
+        let menu = NSMenu()
+        menu.autoenablesItems = false  // so the disabled login item stays disabled under `swift run`
+        if configMissing {
+            menu.addItem(withTitle: tr("⚠️ Нет TELEGRAM_BOT_TOKEN в ", "⚠️ No TELEGRAM_BOT_TOKEN in ") + Config.path, action: nil, keyEquivalent: "")
             menu.addItem(.separator())
         }
-        menu.addItem(withTitle: "Показать идеи", action: #selector(showIdeas), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("Показать идеи", "Show ideas"), action: #selector(showIdeas), keyEquivalent: "").target = self
+
+        loginItem = NSMenuItem(title: "", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         loginItem.target = self
         loginItem.isEnabled = bundleID != nil
         menu.addItem(loginItem)
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Выйти", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
+        // Named in both languages so it can be found whichever one is on.
+        let language = NSMenuItem(title: "Язык / Language", action: nil, keyEquivalent: "")
+        language.submenu = NSMenu()
+        for (title, english) in [("Русский", false), ("English", true)] {
+            let item = NSMenuItem(title: title, action: #selector(pickLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = english ? 1 : 0
+            item.state = Lang.shared.english == english ? .on : .off
+            language.submenu?.addItem(item)
+        }
+        menu.addItem(language)
+
+        menu.addItem(.separator())
+        menu.addItem(withTitle: tr("Выйти", "Quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        status.menu = menu
         applyLaunchAtLogin()
     }
 
     @objc private func showIdeas() { board.setOpen(true) }
+
+    @objc private func pickLanguage(_ item: NSMenuItem) {
+        Lang.shared.set(english: item.tag == 1)  // SwiftUI views redraw by themselves
+        buildMenu()
+    }
 
     /// Acts on what the checkmark shows, not on the stored flag, so a failed register can't invert the click.
     @objc private func toggleLaunchAtLogin() {
@@ -98,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// On by default; the menu checkmark shows what macOS actually has registered.
     private func applyLaunchAtLogin() {
+        loginItem.title = tr("Запускать при входе", "Launch at login")
         guard bundleID != nil else { return }
         let service = SMAppService.mainApp
         let off = UserDefaults.standard.bool(forKey: loginOffKey)
@@ -107,9 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? service.register()
         }
         loginItem.state = service.status == .enabled ? .on : .off
-        loginItem.title = service.status == .requiresApproval
-            ? "Запускать при входе — разрешить в Настройках"
-            : "Запускать при входе"
+        if service.status == .requiresApproval {
+            loginItem.title = tr("Запускать при входе — разрешить в Настройках", "Launch at login — allow in System Settings")
+        }
     }
 }
 
