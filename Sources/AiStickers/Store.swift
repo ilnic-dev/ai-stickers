@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 struct Sticker: Codable, Identifiable, Equatable {
     var id = UUID()
@@ -76,11 +77,11 @@ func tagVocabulary(_ all: [Sticker]) -> [String] {
     return sorted + [laterTag]
 }
 
-@MainActor
+@MainActor @Observable
 final class Store {
     private(set) var stickers: [Sticker] = []
-    var onChange: (() -> Void)?
-    private let url: URL
+    @ObservationIgnored var onChange: (() -> Void)?
+    @ObservationIgnored private let url: URL
 
     init(url: URL? = nil) {
         if let url {

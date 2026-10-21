@@ -43,8 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         status.menu = menu
 
-        store.onChange = { [unowned self] in board.sync() }
-        board.sync()
+        store.onChange = { [unowned self] in board.syncPinned() }
+        board.start()
 
         if let cfg = Config.load() {
             Task { await Bot(cfg: cfg, store: store).run() }
