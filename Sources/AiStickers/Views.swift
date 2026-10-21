@@ -182,9 +182,12 @@ struct CardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if expanded {
-                    IconButton("trash", label: tr("Удалить", "Delete")) { store.remove(sticker.id) }
-                        .padding(.top, -4)
-                        .padding(.trailing, -4)
+                    HStack(spacing: 0) {
+                        CopyButton(text: clipboardText(sticker))
+                        IconButton("trash", label: tr("Удалить", "Delete")) { store.remove(sticker.id) }
+                    }
+                    .padding(.top, -4)
+                    .padding(.trailing, -4)
                 }
             }
             if expanded {
@@ -364,6 +367,7 @@ struct PinnedView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if expanded {
+                        CopyButton(text: clipboardText(s))
                         IconButton("pin.slash", label: tr("Вернуть в панель", "Back to the panel")) { store.update(id) { $0.pinned = false } }
                         IconButton("trash", label: tr("Удалить", "Delete")) { store.remove(id) }
                     }
@@ -433,6 +437,21 @@ struct UndoToast: View {
 }
 
 // MARK: - Small pieces
+
+/// Copies the sticker as text; the icon turns into a check for a moment so the click is visibly done.
+struct CopyButton: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        IconButton(copied ? "checkmark" : "doc.on.doc", label: copied ? tr("Скопировано", "Copied") : tr("Скопировать", "Copy")) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        }
+    }
+}
 
 /// Grab it to move the sticker's window anywhere on screen.
 struct MoveHandle: View {
