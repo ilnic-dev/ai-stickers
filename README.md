@@ -127,3 +127,7 @@ that explains what changed and how it works. Rules for contributors and coding a
 - Telegram is the only input for now.
 - The app is built and ad-hoc signed on your own Mac; there is no notarized download.
 - Tag colors follow alphabetical order, so adding a tag can shift the colors of others.
+
+## License
+
+[MIT](LICENSE) © Ilya Nitsiyeuski
