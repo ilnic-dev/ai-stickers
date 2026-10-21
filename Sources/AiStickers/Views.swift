@@ -206,6 +206,7 @@ struct CardView: View {
     let store: Store
     let state: BoardState
     let board: Board
+    @GestureState private var dragging = false
 
     var body: some View {
         let expanded = state.hovered == sticker.id
@@ -250,8 +251,11 @@ struct CardView: View {
             }
         }
         .gesture(DragGesture(minimumDistance: 8)
+            .updating($dragging) { _, d, _ in d = true }
             .onChanged { _ in board.dragChanged(sticker.id) }
             .onEnded { _ in board.dragEnded(sticker.id) })
+        // GestureState resets on cancel too; after a normal drop dragEnded has already cleared the ghost.
+        .onChange(of: dragging) { if !dragging { board.dragCancelled() } }
         .animation(.easeOut(duration: 0.16), value: expanded)
     }
 }
@@ -415,6 +419,43 @@ struct PinnedView: View {
             .animation(.easeOut(duration: 0.16), value: expanded)
             .padding(pinMargin)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+}
+
+// MARK: - Undo after delete
+
+/// «Отменить» for 5 seconds after a sticker is deleted, from the panel or from the desktop.
+struct UndoToast: View {
+    let store: Store
+
+    var body: some View {
+        if let r = store.removed {
+            HStack(spacing: 12) {
+                Text("Стикер «\(r.sticker.title)» удалён")
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Отменить") { store.undoRemove() }
+                    .buttonStyle(.plain)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Palette.sticky)
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .contentShape(Rectangle())
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(Palette.panel)
+            .padding(.leading, 16)
+            .padding(.trailing, 6)
+            .frame(height: 44)
+            .background(Palette.panelInk, in: Capsule())
+            .shadow(color: .black.opacity(0.3), radius: 12, y: 6)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .task(id: r.sticker.id) {
+                guard (try? await Task.sleep(for: .seconds(5))) != nil else { return }
+                store.forgetRemoved(r.sticker.id)
+            }
         }
     }
 }
