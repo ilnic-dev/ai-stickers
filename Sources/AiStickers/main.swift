@@ -44,8 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let loginOffKey = "launchAtLoginOff"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Two copies would both poll Telegram and fight over every update.
-        if let id = bundleID, NSRunningApplication.runningApplications(withBundleIdentifier: id).count > 1 {
+        // Two copies would both poll Telegram and fight over every update. The older one stays,
+        // so two copies starting together can't both quit.
+        let me = NSRunningApplication.current
+        if let id = bundleID, NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: {
+            $0 != me && ($0.launchDate ?? .distantPast, $0.processIdentifier) < (me.launchDate ?? .distantPast, me.processIdentifier)
+        }) {
             NSApp.terminate(nil)
             return
         }
@@ -53,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
         let menu = NSMenu()
+        menu.autoenablesItems = false  // so the disabled login item stays disabled under `swift run`
         status.menu = menu
 
         store.onChange = { [unowned self] in board.syncPinned() }
@@ -76,24 +81,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showIdeas() { board.setOpen(true) }
 
+    /// Acts on what the checkmark shows, not on the stored flag, so a failed register can't invert the click.
     @objc private func toggleLaunchAtLogin() {
-        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: loginOffKey), forKey: loginOffKey)
+        if SMAppService.mainApp.status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()  // the user switched it off there; only they can allow it
+            return
+        }
+        UserDefaults.standard.set(loginItem.state == .on, forKey: loginOffKey)
         applyLaunchAtLogin()
     }
 
     /// On by default; the menu checkmark shows what macOS actually has registered.
     private func applyLaunchAtLogin() {
         guard bundleID != nil else { return }
-        do {
-            if UserDefaults.standard.bool(forKey: loginOffKey) {
-                try SMAppService.mainApp.unregister()
-            } else if SMAppService.mainApp.status != .enabled {
-                try SMAppService.mainApp.register()
-            }
-        } catch {
-            print("launch at login:", error)
+        let service = SMAppService.mainApp
+        let off = UserDefaults.standard.bool(forKey: loginOffKey)
+        if off && service.status != .notRegistered {
+            try? service.unregister()
+        } else if !off && service.status == .notRegistered {
+            try? service.register()
         }
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        loginItem.state = service.status == .enabled ? .on : .off
+        loginItem.title = service.status == .requiresApproval
+            ? "Запускать при входе — разрешить в Настройках"
+            : "Запускать при входе"
     }
 }
 

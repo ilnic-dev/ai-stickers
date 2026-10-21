@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 swift build -c release
 
-app="build/AI Stickers.app"
+app="$(mktemp -d)/AI Stickers.app"  # fresh every time: no stale files in the signed bundle
 mkdir -p "$app/Contents/MacOS"
 cp .build/release/AiStickers "$app/Contents/MacOS/AiStickers"
 cat > "$app/Contents/Info.plist" <<'PLIST'
@@ -29,8 +29,14 @@ PLIST
 # Ad-hoc signature: enough for a login item on this Mac.
 codesign --force --sign - "$app"
 
-pkill -x AiStickers || true
+# Stop the installed copy only (a `swift run` dev copy has the same process name) and wait,
+# or `open` below could hand off to the dying process.
+running="AI Stickers.app/Contents/MacOS/AiStickers"
+pkill -f "$running" || true
+while pgrep -f "$running" >/dev/null; do sleep 0.2; done
+
 dest="/Applications/AI Stickers.app"
+[ -d "$dest" ] && mv "$dest" "$(mktemp -d)/"  # replace, don't merge
 ditto "$app" "$dest"
 open "$dest"
 echo "Installed: $dest"
