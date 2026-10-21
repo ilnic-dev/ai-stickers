@@ -147,6 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func pickLanguage(_ item: NSMenuItem) {
         Lang.shared.set(english: item.tag == 1)  // SwiftUI views redraw by themselves
         buildMenu()
+        showCount()  // its VoiceOver label is translated too
     }
 
     /// Acts on what the checkmark shows, not on the stored flag, so a failed register can't invert the click.
