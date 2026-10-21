@@ -2,3 +2,4 @@
 .swiftpm/
 .orchestrator/
 .DS_Store
+build/
