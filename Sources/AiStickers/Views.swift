@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum Palette {
@@ -389,9 +390,8 @@ struct PinnedView: View {
                     if expanded {
                         IconButton("pin.slash", label: "Вернуть в панель") { store.update(id) { $0.pinned = false } }
                         IconButton("trash", label: "Удалить") { store.remove(id) }
-                    } else {
-                        Image(systemName: "pin").font(.system(size: 13)).foregroundStyle(Palette.meta).accessibilityHidden(true)
                     }
+                    MoveHandle()
                 }
                 Text(s.summary)
                     .font(.system(size: 13))
@@ -415,6 +415,31 @@ struct PinnedView: View {
 }
 
 // MARK: - Small pieces
+
+/// Grab it to move the sticker's window anywhere on screen.
+struct MoveHandle: View {
+    var body: some View {
+        Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Palette.meta)
+            .frame(width: 28, height: 28)
+            .background(Palette.meta.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(WindowDragArea())
+            .help("Перетащить")
+            .accessibilityLabel("Перетащить стикер")
+    }
+}
+
+/// Native window drag: the window follows the mouse with no lag, and the move is saved on didMove.
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    final class DragView: NSView {
+        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+    }
+}
 
 struct TagDot: View {
     let name: String
