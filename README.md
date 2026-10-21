@@ -51,7 +51,7 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 | No internet on the Mac | The app retries every 5 s and catches up when the network is back. |
 | Not picked up for **more than 24 h** | Telegram drops undelivered bot messages after 24 h; those are lost. Send them again. |
 | Processing failed (unreadable voice, file over 20 MB) | The bot replies "⚠️ …". That message is not retried: send it again. |
-| Claude unavailable (signed out, usage limit) | The sticker is still saved, with your original text as its title and summary. |
+| Claude unavailable (signed out, usage limit) | The sticker is still saved: the first words of your text become its title, the whole text its summary. |
 | App crashed in the middle of a message | That message is delivered again on the next start (a duplicate is possible). |
 | The app runs on two Macs | Don't: two copies reading one bot take messages from each other. Run it on one Mac. |
 

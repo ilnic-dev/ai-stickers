@@ -95,7 +95,7 @@ func clipboardText(_ s: Sticker) -> String {
     if !s.todo.isEmpty {
         parts.append(s.todo.enumerated().map { "- [\(s.done.contains($0.offset) ? "x" : " ")] \($0.element)" }.joined(separator: "\n"))
     }
-    if !s.tags.isEmpty { parts.append(s.tags.map { "#" + $0 }.joined(separator: " ")) }
+    if !s.tags.isEmpty { parts.append(s.tags.map { "#" + tagLabel($0) }.joined(separator: " ")) }
     return parts.joined(separator: "\n\n")
 }
 
