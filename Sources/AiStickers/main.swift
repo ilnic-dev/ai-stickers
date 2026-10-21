@@ -40,14 +40,22 @@ struct Config {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = Store()
-    lazy var board = Board(store: store)
+    lazy var board = Board(store: store, anchor: { [unowned self] in status.button?.window?.frame })
     var status: NSStatusItem!
+    private var menu = NSMenu()
     private var loginItem = NSMenuItem()
     private var configMissing = false
 
     /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
     private var bundleID: String? { Bundle.main.bundleIdentifier }
     private let loginOffKey = "launchAtLoginOff"
+
+    /// Opening the app again from Applications or Spotlight shows the panel: the way in if the
+    /// menu bar icon is hidden behind the notch.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        board.setOpen(true)
+        return false
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Two copies would both poll Telegram and fight over every update. The older one stays,
@@ -60,9 +68,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // Left click opens the panel, right (or ⌃) click the menu.
+        status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
-        store.onChange = { [unowned self] in board.storeChanged() }
+        status.button?.imagePosition = .imageLeading
+        status.button?.target = self
+        status.button?.action = #selector(statusClicked)
+        status.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        store.onChange = { [unowned self] in
+            board.storeChanged()
+            showCount()
+        }
+        showCount()
         board.start()
 
         if let cfg = Config.load() {
@@ -102,15 +119,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: tr("Выйти", "Quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        status.menu = menu
+        self.menu = menu
         applyLaunchAtLogin()
     }
 
     @objc private func showIdeas() { board.setOpen(true) }
 
+    @objc private func statusClicked() {
+        let event = NSApp.currentEvent
+        // Without a token the menu is where the warning is, so a plain click shows it too.
+        if configMissing || event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            status.button?.highlight(true)
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: (status.button?.bounds.height ?? 22) + 4), in: status.button)
+            status.button?.highlight(false)
+        } else {
+            board.toggle()
+        }
+    }
+
+    /// Open ideas next to the icon (pinned ones too, "позже" not), nothing when there are none.
+    private func showCount() {
+        let count = store.stickers.filter { !$0.isLater }.count
+        status.button?.title = count > 0 ? " \(count)" : ""
+        status.button?.setAccessibilityLabel(tr("AI Stickers, идей: ", "AI Stickers, ideas: ") + "\(count)")
+    }
+
     @objc private func pickLanguage(_ item: NSMenuItem) {
         Lang.shared.set(english: item.tag == 1)  // SwiftUI views redraw by themselves
         buildMenu()
+        showCount()  // its VoiceOver label is translated too
     }
 
     /// Acts on what the checkmark shows, not on the stored flag, so a failed register can't invert the click.

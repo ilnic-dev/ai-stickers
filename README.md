@@ -4,12 +4,12 @@
 
 [Русская версия](README.ru.md)
 
-![Ideas panel at the left screen edge and two stickers pinned to the desktop](docs/screenshot.png)
+![Ideas panel dropped down from the menu bar and two stickers pinned to the desktop](docs/screenshot.png)
 
 Ideas come at random moments, and they get lost across dozens of chats and notes apps.
 AI Stickers gives them one inbox: a private Telegram bot. Type or dictate a messy thought,
 and a few seconds later it sits on your Mac as a short, tidy sticky note with a summary and
-a checklist. It lives at the edge of your screen, where you will actually see it.
+a checklist, one click away in the menu bar, or pinned right on your desktop.
 
 ## How it works
 
@@ -19,7 +19,7 @@ Telegram  ──►  AI Stickers.app on your Mac
                   ├─ voice → text locally: ffmpeg + whisper.cpp
                   ├─ text → sticker via your `claude` CLI (Haiku):
                   │    title · 1–3 sentence summary · todos · up to 2 of your tags
-                  └─ sticker → the ideas panel at the left screen edge
+                  └─ sticker → the ideas panel under the menu bar icon
 ```
 
 - **No server.** The app long-polls Telegram itself. Telegram keeps messages for 24 hours,
@@ -29,14 +29,14 @@ Telegram  ──►  AI Stickers.app on your Mac
 
 ## Features
 
-- **Edge tab** at the left screen edge shows how many ideas are open. Hover it to slide out the panel.
+- **Menu bar icon** 📝 with the number of open ideas next to it. Click it to drop down the panel; click outside, click the icon again or press Esc to close it.
 - **Cards expand on hover**: summary, a checklist (ticks are saved), tags, and delete with a few seconds to undo.
 - **Tags.** Filter chips at the top of the panel; pick several at once. On a card, `×` removes a tag and `+ тег` adds an existing or a new one.
 - **Mixed Russian and English voice notes** come out right: English terms stay in Latin script, and the sticker is written in the language you mostly spoke.
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.
 - **«позже» (later)** is a built-in tag that hides ideas that are not relevant yet; one click shows them again.
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
-- **Menu bar icon** shows the app is running: show ideas, launch at login, interface language, quit.
+- **Right-click the icon** for the menu: show ideas, launch at login, interface language, quit.
 - **English or Russian interface**, switched in the menu bar («Язык / Language»); it follows the system language by default. Stickers stay in the language you spoke them in.
 - **Starts at login**, has no Dock icon, and only one copy runs at a time.
 
@@ -75,7 +75,7 @@ Telegram  ──►  AI Stickers.app on your Mac
    TELEGRAM_USER_ID=123456789
    ```
 
-   Then restart the app (menu bar icon → «Выйти», then open AI Stickers from Applications).
+   Then restart the app (right-click the menu bar icon → «Выйти», then open AI Stickers from Applications).
    From now on the bot accepts messages only from you and ignores everyone else.
 
 ## Configuration
@@ -116,7 +116,7 @@ swift run                   # dev run: no launch at login, no single-instance ch
 | `Sources/AiStickers/main.swift` | config, menu bar menu, launch at login, startup |
 | `Sources/AiStickers/Bot.swift` | Telegram polling, voice → text, idea → sticker via `claude -p` |
 | `Sources/AiStickers/Store.swift` | sticker model, JSON storage, filters and tags (pure, tested) |
-| `Sources/AiStickers/Board.swift` | windows: edge tab, panel, pinned stickers, dragging |
+| `Sources/AiStickers/Board.swift` | windows: the menu bar panel, pinned stickers, dragging |
 | `Sources/AiStickers/Views.swift` | SwiftUI views |
 | `scripts/install.sh` | builds and installs `AI Stickers.app` |
 

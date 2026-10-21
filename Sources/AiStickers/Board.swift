@@ -46,39 +46,45 @@ final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
 let pinMargin: CGFloat = 24
 private let pinWindow = NSSize(width: 280 + 2 * pinMargin, height: 520 + 2 * pinMargin)
 private let panelWidth: CGFloat = 340
-private let panelInset: CGFloat = 12
+let panelMargin: CGFloat = 24        // shadow room around the panel card, inside its window
+let panelBottom: CGFloat = 48        // the shadow falls downward (radius 25, y 18)
+private let panelMaxHeight: CGFloat = 640
 /// The collapsed sticker that must stay on screen; the rest of its window is margin and room to grow.
 private let pinCard = CGSize(width: 220, height: 100)
 private let toastSize = NSSize(width: 360, height: 80)
 
-/// The edge tab, the ideas panel it opens, and one window per sticker pinned to the desktop.
+/// The ideas panel dropping down from the menu bar icon, and one window per sticker pinned to the desktop.
 @MainActor
 final class Board {
     let store: Store
     let state = BoardState()
-    private var tab: Panel!
     private var panel: Panel!
     private var toast: Panel!
     private var pinned: [UUID: Panel] = [:]
     private var ghost: Panel?
 
-    init(store: Store) { self.store = store }
+    /// The menu bar icon's frame on screen; the panel opens under it.
+    private let anchor: () -> NSRect?
 
-    /// The menu-bar screen: the tab stays put instead of following whichever screen has focus.
+    init(store: Store, anchor: @escaping () -> NSRect?) {
+        self.store = store
+        self.anchor = anchor
+    }
+
+    /// The menu-bar screen.
     private var screen: NSRect { NSScreen.screens.first?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900) }
 
-    /// The panel strip from the screen edge to the card's right side; dropping here does not pin.
+    /// The panel card inside its window; dropping a card here does not pin it.
     private var panelRect: NSRect {
-        NSRect(x: panel.frame.minX, y: panel.frame.minY, width: panelInset + panelWidth, height: panel.frame.height)
+        NSRect(x: panel.frame.minX + panelMargin, y: panel.frame.minY + panelBottom,
+               width: panelWidth, height: panel.frame.height - panelBottom)
     }
 
     func start() {
-        tab = Panel(.zero, EdgeTab(store: store, open: { [unowned self] in setOpen(true) }))
         panel = Panel(.zero, PanelView(store: store, state: state, board: self))
         toast = Panel(.zero, UndoToast(store: store))
         toast.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         layout()
-        tab.orderFrontRegardless()
         toast.orderFrontRegardless()  // empty and click-through until something is deleted
         syncPinned()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -90,6 +96,27 @@ final class Board {
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
             DispatchQueue.main.async { self?.dragCancelled() }
             return event
+        }
+        // Like a menu: a click in another app or on the desktop closes the panel, unless it's pinned open.
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.state.open, !self.state.locked, self.ghost == nil else { return }
+                self.setOpen(false)
+            }
+        }
+        // Esc closes it once the panel has been clicked (it only gets keys as the key window).
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return event }
+            let closed = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.state.open else { return false }
+                if self.state.addingTag != nil {
+                    self.state.addingTag = nil  // first Esc just closes the tag picker
+                    return true
+                }
+                self.setOpen(false)
+                return true
+            }
+            return closed ? nil : event
         }
     }
 
@@ -111,11 +138,9 @@ final class Board {
         toast.setFrame(NSRect(x: vf.midX - toastSize.width / 2, y: vf.minY + 24, width: toastSize.width, height: toastSize.height), display: true)
     }
 
-    /// Monitors and the Dock change at runtime: re-fit the edge windows and pull pinned stickers back on screen.
+    /// Monitors and the Dock change at runtime: re-place the panel and the toast, pull pinned stickers back on screen.
     private func layout() {
-        let vf = screen
-        tab.setFrame(NSRect(x: vf.minX, y: vf.maxY - 300, width: 64, height: 172), display: true)
-        panel.setFrame(NSRect(x: vf.minX, y: vf.minY, width: panelInset + panelWidth + 40, height: vf.height), display: true)
+        if state.open { positionPanel() }
         placeToast()
         for id in pinned.keys { pinnedMoved(id) }
     }
@@ -134,24 +159,31 @@ final class Board {
         return NSPoint(x: p.x - pinMargin, y: p.y + pinMargin - pinWindow.height)
     }
 
+    func toggle() { setOpen(!state.open) }
+
     func setOpen(_ open: Bool) {
         state.open = open
         if open {
+            positionPanel()
             panel.orderFrontRegardless()
-            tab.orderOut(nil)
         } else {
             state.hovered = nil
             state.addingTag = nil
             ghost?.close()  // a drag cancelled mid-way never reaches dragEnded
             ghost = nil
             panel.orderOut(nil)
-            tab.orderFrontRegardless()
         }
     }
 
-    /// Leaving the panel while dragging a card out is the point of the drag, not a reason to close.
-    func mouseLeftPanel() {
-        if !state.locked && ghost == nil { setOpen(false) }
+    /// Hangs the card right under the menu bar, centred on the icon and kept on that screen.
+    private func positionPanel() {
+        let icon = anchor() ?? NSRect(x: screen.maxX - 120, y: screen.maxY, width: 24, height: 22)
+        let vf = (NSScreen.screens.first { $0.frame.intersects(icon) } ?? NSScreen.main)?.visibleFrame ?? screen
+        let height = min(panelMaxHeight, vf.height - 12)
+        let x = min(max(icon.midX - panelWidth / 2, vf.minX + 6), vf.maxX - panelWidth - 6)
+        let top = vf.maxY - 6
+        panel.setFrame(NSRect(x: x - panelMargin, y: top - height - panelBottom,
+                              width: panelWidth + 2 * panelMargin, height: height + panelBottom), display: true)
     }
 
     func syncPinned() {
@@ -187,13 +219,11 @@ final class Board {
         ghost?.setFrameTopLeftPoint(NSPoint(x: p.x - 24 - pinMargin, y: p.y + 16 + pinMargin))
     }
 
-    /// The system cancelled the drag (onEnded never comes): drop the preview and close if the mouse already left.
+    /// The system cancelled the drag (onEnded never comes): drop the preview.
     func dragCancelled() {
         guard let g = ghost else { return }
         g.close()
         ghost = nil
-        // The window is wider and taller than the card (shadow room); only the card and the edge strip count as inside.
-        if state.open && !panelRect.insetBy(dx: 0, dy: 24).contains(NSEvent.mouseLocation) { mouseLeftPanel() }
     }
 
     func dragEnded(_ id: UUID) {
