@@ -44,6 +44,18 @@ func normalizeTag(_ s: String) -> String {
         .lowercased()
 }
 
+private let hashtagPattern = try! Regex(#"(?:^|[^\p{L}\p{N}])#([\p{L}\p{N}_-]+)"#)
+
+/// `#тег` words in a message, normalized, in order, without duplicates.
+func hashtags(in text: String) -> [String] {
+    var seen: [String] = []
+    for m in text.matches(of: hashtagPattern) {
+        let tag = normalizeTag(String(m.output[1].substring ?? ""))
+        if !seen.contains(tag) { seen.append(tag) }
+    }
+    return seen
+}
+
 /// What the panel lists: unpinned, newest first. A sticker matches the filter if it has any of its tags.
 /// "позже" stays hidden unless shown explicitly or picked in the filter.
 func panelStickers(_ all: [Sticker], filter: Set<String>, showLater: Bool) -> [Sticker] {
