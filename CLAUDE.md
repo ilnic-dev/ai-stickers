@@ -27,7 +27,7 @@ Boundary rules:
 ## Conventions workers get wrong here
 - `stickers.json` must stay readable: every new `Sticker` field is decoded with `decodeIfPresent` and a default.
 - External tools (ffmpeg, whisper-cli, claude) are absolute paths from `Config`; a GUI app has no shell `PATH`.
-- User-facing strings are Russian.
+- User-facing strings go through `tr(ru, en)`, Russian first; never a bare literal.
 - Never log or echo the Telegram token.
 
 ## Delivery

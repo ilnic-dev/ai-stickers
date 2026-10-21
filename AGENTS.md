@@ -29,7 +29,7 @@ Never: write `stickers.json` outside `Store`; import AppKit into `Bot.swift` or 
 - New `Sticker` fields decode with `decodeIfPresent` + default; old files must still load.
 - No new dependencies; `Package.swift` changes need the orchestrator's approval.
 - Binaries come from `Config` as absolute paths.
-- User-facing strings in Russian.
+- User-facing strings go through `tr(ru, en)`, Russian first; never a bare literal.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) and test behaviour through `Store`'s public functions.
 
 ### Verify

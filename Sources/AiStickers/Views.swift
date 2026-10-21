@@ -27,17 +27,10 @@ extension Color {
 }
 
 private let timeFormat: DateFormatter = { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f }()
-private let dayFormat: DateFormatter = {
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "ru_RU")
-    f.dateFormat = "d MMM"
-    return f
-}()
-
 func when(_ date: Date) -> String {
-    if Calendar.current.isDateInToday(date) { return "сегодня, \(timeFormat.string(from: date))" }
-    if Calendar.current.isDateInYesterday(date) { return "вчера, \(timeFormat.string(from: date))" }
-    return dayFormat.string(from: date)
+    if Calendar.current.isDateInToday(date) { return tr("сегодня", "today") + ", " + timeFormat.string(from: date) }
+    if Calendar.current.isDateInYesterday(date) { return tr("вчера", "yesterday") + ", " + timeFormat.string(from: date) }
+    return date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: tr("ru_RU", "en_US"))))
 }
 
 // MARK: - Edge tab
@@ -60,7 +53,7 @@ struct EdgeTab: View {
         }
         .buttonStyle(.plain)
         .onHover { if $0 { open() } }
-        .accessibilityLabel("Открыть идеи: \(count)")
+        .accessibilityLabel(tr("Открыть идеи: ", "Open ideas: ") + "\(count)")
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
@@ -82,8 +75,8 @@ struct PanelView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Идеи").font(.system(size: 17, weight: .bold)).foregroundStyle(Palette.panelInk)
-                    Text("актуально: \(active.count) · задач: \(active.reduce(0) { $0 + $1.openTodos })")
+                    Text(tr("Идеи", "Ideas")).font(.system(size: 17, weight: .bold)).foregroundStyle(Palette.panelInk)
+                    Text(tr("актуально: ", "open: ") + "\(active.count) · " + tr("задач: ", "todos: ") + "\(active.reduce(0) { $0 + $1.openTodos })")
                         .font(.system(size: 12)).foregroundStyle(Palette.muted)
                 }
                 Spacer()
@@ -96,8 +89,8 @@ struct PanelView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(state.locked ? "Открепить панель" : "Закрепить панель открытой")
-                .accessibilityLabel(state.locked ? "Открепить панель" : "Закрепить панель открытой")
+                .help(state.locked ? tr("Открепить панель", "Unpin the panel") : tr("Закрепить панель открытой", "Keep the panel open"))
+                .accessibilityLabel(state.locked ? tr("Открепить панель", "Unpin the panel") : tr("Закрепить панель открытой", "Keep the panel open"))
                 Button { state.locked = false; board.setOpen(false) } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
@@ -106,16 +99,16 @@ struct PanelView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Свернуть")
+                .accessibilityLabel(tr("Свернуть", "Collapse"))
             }
             .padding(EdgeInsets(top: 16, leading: 18, bottom: 10, trailing: 16))
 
             FlowLayout(spacing: 6) {
-                FilterChip(label: "Все", count: nil, color: nil, on: state.filter.isEmpty) { state.filter = [] }
+                FilterChip(label: tr("Все", "All"), count: nil, color: nil, on: state.filter.isEmpty) { state.filter = [] }
                 // Selected tags stay visible even when no sticker has them any more, so they can be unselected.
                 let shown = store.vocabulary.filter { counts[$0, default: 0] > 0 } + state.filter.subtracting(Set(inPanel.flatMap(\.tags))).sorted()
                 ForEach(shown, id: \.self) { t in
-                    FilterChip(label: t, count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
+                    FilterChip(label: tagLabel(t), count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
                         if state.filter.contains(t) { state.filter.remove(t) } else { state.filter.insert(t) }
                     }
                 }
@@ -127,13 +120,13 @@ struct PanelView: View {
                 LazyVStack(spacing: 8) {
                     ForEach(list) { s in CardView(sticker: s, store: store, state: state, board: board) }
                     if inPanel.isEmpty {
-                        Text("Пока пусто. Напиши мысль боту в Telegram.").emptyNote()
+                        Text(tr("Пока пусто. Напиши мысль боту в Telegram.", "Nothing yet. Send a thought to the Telegram bot.")).emptyNote()
                     } else if list.isEmpty {
-                        Text("Нет идей с этими тегами").emptyNote()
+                        Text(tr("Нет идей с этими тегами", "No ideas with these tags")).emptyNote()
                     }
                     if laterCount > 0 && !state.filter.contains(laterTag) {
                         Button { state.showLater.toggle() } label: {
-                            Text(state.showLater ? "Скрыть отложенные" : "Показать отложенные · \(laterCount)")
+                            Text(state.showLater ? tr("Скрыть отложенные", "Hide later") : tr("Показать отложенные", "Show later") + " · \(laterCount)")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(Color(hex: 0x4A443A))
                                 .padding(.horizontal, 12)
@@ -151,7 +144,7 @@ struct PanelView: View {
 
             HStack(spacing: 8) {
                 Image(systemName: "arrow.up.and.down.and.arrow.left.and.right").accessibilityHidden(true)
-                Text("Перетащи стикер на стол, чтобы закрепить")
+                Text(tr("Перетащи стикер на стол, чтобы закрепить", "Drag a sticker onto the desktop to pin it"))
             }
             .font(.system(size: 12))
             .foregroundStyle(Palette.muted)
@@ -218,7 +211,7 @@ struct CardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if expanded {
-                    IconButton("trash", label: "Удалить") { store.remove(sticker.id) }
+                    IconButton("trash", label: tr("Удалить", "Delete")) { store.remove(sticker.id) }
                         .padding(.top, -4)
                         .padding(.trailing, -4)
                 }
@@ -304,16 +297,16 @@ struct TagEditor: View {
                     Button { store.update(sticker.id) { $0.tags.removeAll { $0 == t } } } label: {
                         HStack(spacing: 5) {
                             TagDot(name: t, store: store)
-                            Text(t)
+                            Text(tagLabel(t))
                             Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.meta)
                         }
                         .chip(fill: .white.opacity(0.65))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Убрать тег \(t)")
+                    .accessibilityLabel(tr("Убрать тег ", "Remove tag ") + tagLabel(t))
                 }
                 Button { state.addingTag = open ? nil : sticker.id } label: {
-                    Text("+ тег")
+                    Text(tr("+ тег", "+ tag"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Palette.meta)
                         .padding(.horizontal, 9)
@@ -327,12 +320,12 @@ struct TagEditor: View {
                     FlowLayout(spacing: 6) {
                         ForEach(store.vocabulary.filter { !sticker.tags.contains($0) }, id: \.self) { t in
                             Button { add(t) } label: {
-                                HStack(spacing: 5) { TagDot(name: t, store: store); Text(t) }.chip(fill: Palette.panel)
+                                HStack(spacing: 5) { TagDot(name: t, store: store); Text(tagLabel(t)) }.chip(fill: Palette.panel)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    TextField("новый тег", text: $newTag)
+                    TextField(tr("новый тег", "new tag"), text: $newTag)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
                         .padding(.horizontal, 9)
@@ -362,7 +355,7 @@ struct MetaRow: View {
         FlowLayout(spacing: 8) {
             Text(when(sticker.created))
             if !sticker.todo.isEmpty {
-                Text(sticker.openTodos == 0 ? "всё сделано" : "\(sticker.openTodos) из \(sticker.todo.count)")
+                Text(sticker.openTodos == 0 ? tr("всё сделано", "all done") : "\(sticker.openTodos) " + tr("из", "of") + " \(sticker.todo.count)")
                     .fontWeight(.semibold)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
@@ -370,7 +363,7 @@ struct MetaRow: View {
             }
             if showTags {
                 ForEach(sticker.tags, id: \.self) { t in
-                    HStack(spacing: 4) { TagDot(name: t, store: store); Text(t) }
+                    HStack(spacing: 4) { TagDot(name: t, store: store); Text(tagLabel(t)) }
                 }
             }
         }
@@ -400,8 +393,8 @@ struct PinnedView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if expanded {
-                        IconButton("pin.slash", label: "Вернуть в панель") { store.update(id) { $0.pinned = false } }
-                        IconButton("trash", label: "Удалить") { store.remove(id) }
+                        IconButton("pin.slash", label: tr("Вернуть в панель", "Back to the panel")) { store.update(id) { $0.pinned = false } }
+                        IconButton("trash", label: tr("Удалить", "Delete")) { store.remove(id) }
                     }
                     MoveHandle(moving: $moving, onMoved: onMoved)
                 }
@@ -442,10 +435,10 @@ struct UndoToast: View {
 
     private func toast(_ s: Sticker) -> some View {
         HStack(spacing: 12) {
-            Text("Стикер «\(s.title)» удалён")
+            Text(tr("Стикер «\(s.title)» удалён", "Deleted “\(s.title)”"))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Отменить") { store.undoRemove() }
+            Button(tr("Отменить", "Undo")) { store.undoRemove() }
                 .buttonStyle(.plain)
                 .fontWeight(.semibold)
                 .foregroundStyle(Palette.sticky)
@@ -482,8 +475,8 @@ struct MoveHandle: View {
             .frame(width: 28, height: 28)
             .background(Palette.meta.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
             .overlay(WindowDragArea(moving: $moving, onMoved: onMoved))
-            .help("Перетащить")
-            .accessibilityLabel("Перетащить стикер")
+            .help(tr("Перетащить", "Move"))
+            .accessibilityLabel(tr("Перетащить стикер", "Move the sticker"))
     }
 }
 

@@ -36,7 +36,8 @@ Telegram  ──►  AI Stickers.app on your Mac
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.
 - **«позже» (later)** is a built-in tag that hides ideas that are not relevant yet; one click shows them again.
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
-- **Menu bar icon** shows the app is running: show ideas, launch at login, quit.
+- **Menu bar icon** shows the app is running: show ideas, launch at login, interface language, quit.
+- **English or Russian interface**, switched in the menu bar («Язык / Language»); it follows the system language by default. Stickers stay in the language you spoke them in.
 - **Starts at login**, has no Dock icon, and only one copy runs at a time.
 
 ## Requirements
@@ -125,7 +126,6 @@ that explains what changed and how it works. Rules for contributors and coding a
 
 ## Limitations
 
-- The interface is in Russian.
 - Telegram is the only input for now.
 - The app is built and ad-hoc signed on your own Mac; there is no notarized download.
 - Tag colors follow alphabetical order, so adding a tag can shift the colors of others.
