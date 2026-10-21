@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 struct Config {
     static let path = NSString(string: "~/.config/ai-stickers.env").expandingTildeInPath
@@ -36,8 +37,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = Store()
     lazy var board = Board(store: store)
     var status: NSStatusItem!
+    private let loginItem = NSMenuItem(title: "Запускать при входе", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+
+    /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
+    private var bundleID: String? { Bundle.main.bundleIdentifier }
+    private let loginOffKey = "launchAtLoginOff"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Two copies would both poll Telegram and fight over every update.
+        if let id = bundleID, NSRunningApplication.runningApplications(withBundleIdentifier: id).count > 1 {
+            NSApp.terminate(nil)
+            return
+        }
+
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "AI Stickers")
         let menu = NSMenu()
@@ -50,8 +62,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await Bot(cfg: cfg, store: store).run() }
         } else {
             menu.addItem(withTitle: "⚠️ Нет TELEGRAM_BOT_TOKEN в \(Config.path)", action: nil, keyEquivalent: "")
+            menu.addItem(.separator())
         }
+        menu.addItem(withTitle: "Показать идеи", action: #selector(showIdeas), keyEquivalent: "").target = self
+        loginItem.target = self
+        loginItem.isEnabled = bundleID != nil
+        menu.addItem(loginItem)
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Выйти", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        applyLaunchAtLogin()
+    }
+
+    @objc private func showIdeas() { board.setOpen(true) }
+
+    @objc private func toggleLaunchAtLogin() {
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: loginOffKey), forKey: loginOffKey)
+        applyLaunchAtLogin()
+    }
+
+    /// On by default; the menu checkmark shows what macOS actually has registered.
+    private func applyLaunchAtLogin() {
+        guard bundleID != nil else { return }
+        do {
+            if UserDefaults.standard.bool(forKey: loginOffKey) {
+                try SMAppService.mainApp.unregister()
+            } else if SMAppService.mainApp.status != .enabled {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            print("launch at login:", error)
+        }
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 }
 
