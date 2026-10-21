@@ -23,6 +23,39 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(Store(url: url).stickers == a.stickers)
 }
 
+@Test @MainActor func removeCanBeUndone() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("stickers-\(UUID()).json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let store = Store(url: url)
+    let (a, b, c) = (sticker("a"), sticker("b"), sticker("c"))
+    [a, b, c].forEach(store.add)
+    store.remove(b.id)
+    #expect(Store(url: url).stickers.map(\.title) == ["a", "c"])
+    store.undoRemove()
+    #expect(store.removed == nil)
+    #expect(Store(url: url).stickers.map(\.title) == ["a", "b", "c"])
+
+    store.remove(a.id)
+    store.remove(c.id)
+    store.forgetRemoved(a.id)  // a stale timer must not drop the newer offer
+    #expect(store.removed?.sticker.id == c.id)
+    store.forgetRemoved(c.id)
+    store.undoRemove()
+    #expect(store.stickers.map(\.title) == ["b"])
+}
+
+@Test func pinnedStickerClampsToNearestScreen() {
+    let screens = [CGRect(x: 0, y: 0, width: 1000, height: 800), CGRect(x: 1000, y: 0, width: 800, height: 600)]
+    let card = CGSize(width: 220, height: 100)
+    #expect(clampTopLeft(CGPoint(x: 300, y: 500), card: card, screens: screens) == CGPoint(x: 300, y: 500))
+    #expect(clampTopLeft(CGPoint(x: 900, y: 500), card: card, screens: screens) == CGPoint(x: 900, y: 500))  // across the seam
+    #expect(clampTopLeft(CGPoint(x: 900, y: 700), card: card, screens: screens) == CGPoint(x: 780, y: 700))  // half off the top-right
+    // A monitor that used to be on the right is gone: back onto the nearest edge of the second screen.
+    #expect(clampTopLeft(CGPoint(x: 2500, y: 700), card: card, screens: screens) == CGPoint(x: 1580, y: 600))
+    #expect(clampTopLeft(CGPoint(x: -400, y: 50), card: card, screens: screens) == CGPoint(x: 0, y: 100))
+    #expect(clampTopLeft(CGPoint(x: 5, y: 5), card: card, screens: []) == CGPoint(x: 5, y: 5))
+}
+
 @Test func panelHidesPinnedAndLater() {
     let all = [sticker("a"), sticker("pinned", pinned: true), sticker("later", tags: [laterTag])]
     #expect(panelStickers(all, filter: [], showLater: false).map(\.title) == ["a"])

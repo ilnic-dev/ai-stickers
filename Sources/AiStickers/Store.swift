@@ -71,6 +71,16 @@ func panelStickers(_ all: [Sticker], filter: Set<String>, showLater: Bool) -> [S
     .sorted { $0.created > $1.created }
 }
 
+/// Where a pinned sticker's top-left corner may sit: unchanged while the whole card is on screens (even across
+/// a seam), otherwise inside the screen nearest to it. Cocoa coordinates: y grows upward, so the card hangs below `p`.
+func clampTopLeft(_ p: CGPoint, card: CGSize, screens: [CGRect]) -> CGPoint {
+    let corners = [p, CGPoint(x: p.x + card.width, y: p.y), CGPoint(x: p.x, y: p.y - card.height), CGPoint(x: p.x + card.width, y: p.y - card.height)]
+    if corners.allSatisfy({ c in screens.contains { $0.contains(c) } }) { return p }
+    func distance(_ r: CGRect) -> CGFloat { hypot(max(r.minX - p.x, 0, p.x - r.maxX), max(r.minY - p.y, 0, p.y - r.maxY)) }
+    guard let s = screens.min(by: { distance($0) < distance($1) }) else { return p }
+    return CGPoint(x: max(min(p.x, s.maxX - card.width), s.minX), y: min(max(p.y, s.minY + card.height), s.maxY))
+}
+
 /// Every tag in use, most used first, and "позже" always last.
 func tagVocabulary(_ all: [Sticker]) -> [String] {
     var counts: [String: Int] = [:]
@@ -82,6 +92,8 @@ func tagVocabulary(_ all: [Sticker]) -> [String] {
 @MainActor @Observable
 final class Store {
     private(set) var stickers: [Sticker] = []
+    /// The last deleted sticker and its position, while «Отменить» is still offered.
+    private(set) var removed: (sticker: Sticker, index: Int)?
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private let url: URL
 
@@ -106,7 +118,24 @@ final class Store {
     var vocabulary: [String] { tagVocabulary(stickers) }
 
     func add(_ s: Sticker) { stickers.append(s); save(); onChange?() }
-    func remove(_ id: UUID) { stickers.removeAll { $0.id == id }; save(); onChange?() }
+
+    func remove(_ id: UUID) {
+        guard let i = stickers.firstIndex(where: { $0.id == id }) else { return }
+        removed = (stickers.remove(at: i), i)
+        save()
+        onChange?()
+    }
+
+    func undoRemove() {
+        guard let r = removed else { return }
+        stickers.insert(r.sticker, at: min(r.index, stickers.count))
+        removed = nil
+        save()
+        onChange?()
+    }
+
+    /// The undo offer expired; a newer deletion keeps its own offer.
+    func forgetRemoved(_ id: UUID) { if removed?.sticker.id == id { removed = nil } }
 
     func update(_ id: UUID, _ change: (inout Sticker) -> Void) {
         guard let i = stickers.firstIndex(where: { $0.id == id }) else { return }
