@@ -50,6 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var bundleID: String? { Bundle.main.bundleIdentifier }
     private let loginOffKey = "launchAtLoginOff"
 
+    /// Opening the app again from Applications or Spotlight shows the panel: the way in if the
+    /// menu bar icon is hidden behind the notch.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        board.setOpen(true)
+        return false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Two copies would both poll Telegram and fight over every update. The older one stays,
         // so two copies starting together can't both quit.
@@ -120,8 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func statusClicked() {
         let event = NSApp.currentEvent
-        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+        // Without a token the menu is where the warning is, so a plain click shows it too.
+        if configMissing || event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            status.button?.highlight(true)
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: (status.button?.bounds.height ?? 22) + 4), in: status.button)
+            status.button?.highlight(false)
         } else {
             board.toggle()
         }
@@ -131,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showCount() {
         let count = store.stickers.filter { !$0.isLater }.count
         status.button?.title = count > 0 ? " \(count)" : ""
-        status.button?.setAccessibilityLabel("AI Stickers: \(count)")
+        status.button?.setAccessibilityLabel(tr("AI Stickers, идей: ", "AI Stickers, ideas: ") + "\(count)")
     }
 
     @objc private func pickLanguage(_ item: NSMenuItem) {

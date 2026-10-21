@@ -132,7 +132,7 @@ struct PanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .background(RoundedRectangle(cornerRadius: 16).fill(Palette.panel).shadow(color: .black.opacity(0.35), radius: 25, y: 18))
         .padding(.horizontal, panelMargin)
-        .padding(.bottom, panelMargin)
+        .padding(.bottom, panelBottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }

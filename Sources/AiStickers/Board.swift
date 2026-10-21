@@ -47,6 +47,7 @@ let pinMargin: CGFloat = 24
 private let pinWindow = NSSize(width: 280 + 2 * pinMargin, height: 520 + 2 * pinMargin)
 private let panelWidth: CGFloat = 340
 let panelMargin: CGFloat = 24        // shadow room around the panel card, inside its window
+let panelBottom: CGFloat = 48        // the shadow falls downward (radius 25, y 18)
 private let panelMaxHeight: CGFloat = 640
 /// The collapsed sticker that must stay on screen; the rest of its window is margin and room to grow.
 private let pinCard = CGSize(width: 220, height: 100)
@@ -75,8 +76,8 @@ final class Board {
 
     /// The panel card inside its window; dropping a card here does not pin it.
     private var panelRect: NSRect {
-        NSRect(x: panel.frame.minX + panelMargin, y: panel.frame.minY + panelMargin,
-               width: panelWidth, height: panel.frame.height - panelMargin)
+        NSRect(x: panel.frame.minX + panelMargin, y: panel.frame.minY + panelBottom,
+               width: panelWidth, height: panel.frame.height - panelBottom)
     }
 
     func start() {
@@ -108,6 +109,10 @@ final class Board {
             guard event.keyCode == 53 else { return event }
             let closed = MainActor.assumeIsolated { () -> Bool in
                 guard let self, self.state.open else { return false }
+                if self.state.addingTag != nil {
+                    self.state.addingTag = nil  // first Esc just closes the tag picker
+                    return true
+                }
                 self.setOpen(false)
                 return true
             }
@@ -133,7 +138,7 @@ final class Board {
         toast.setFrame(NSRect(x: vf.midX - toastSize.width / 2, y: vf.minY + 24, width: toastSize.width, height: toastSize.height), display: true)
     }
 
-    /// Monitors and the Dock change at runtime: re-fit the edge windows and pull pinned stickers back on screen.
+    /// Monitors and the Dock change at runtime: re-place the panel and the toast, pull pinned stickers back on screen.
     private func layout() {
         if state.open { positionPanel() }
         placeToast()
@@ -177,8 +182,8 @@ final class Board {
         let height = min(panelMaxHeight, vf.height - 12)
         let x = min(max(icon.midX - panelWidth / 2, vf.minX + 6), vf.maxX - panelWidth - 6)
         let top = vf.maxY - 6
-        panel.setFrame(NSRect(x: x - panelMargin, y: top - height - panelMargin,
-                              width: panelWidth + 2 * panelMargin, height: height + panelMargin), display: true)
+        panel.setFrame(NSRect(x: x - panelMargin, y: top - height - panelBottom,
+                              width: panelWidth + 2 * panelMargin, height: height + panelBottom), display: true)
     }
 
     func syncPinned() {
@@ -214,7 +219,7 @@ final class Board {
         ghost?.setFrameTopLeftPoint(NSPoint(x: p.x - 24 - pinMargin, y: p.y + 16 + pinMargin))
     }
 
-    /// The system cancelled the drag (onEnded never comes): drop the preview and close if the mouse already left.
+    /// The system cancelled the drag (onEnded never comes): drop the preview.
     func dragCancelled() {
         guard let g = ghost else { return }
         g.close()

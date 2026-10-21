@@ -9,7 +9,7 @@
 Ideas come at random moments, and they get lost across dozens of chats and notes apps.
 AI Stickers gives them one inbox: a private Telegram bot. Type or dictate a messy thought,
 and a few seconds later it sits on your Mac as a short, tidy sticky note with a summary and
-a checklist. It lives at the edge of your screen, where you will actually see it.
+a checklist, one click away in the menu bar, or pinned right on your desktop.
 
 ## How it works
 
