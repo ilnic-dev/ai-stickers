@@ -39,7 +39,11 @@ struct Config {
     }
 
     /// Sets one key in the config file, keeping every other line. The file holds the bot token: owner-only.
+    private static let writing = NSLock()  // the bot (its own task) and the setup window both write
+
     static func set(_ key: String, _ value: String, in file: String = path) {
+        writing.lock()
+        defer { writing.unlock() }
         let url = URL(fileURLWithPath: file)
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
@@ -60,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menu = NSMenu()
     private var loginItem = NSMenuItem()
     private var botTask: Task<Void, Never>?
+    /// One-time code in the setup window's link to the bot; a new one for every bot start.
+    private var claimCode = ""
     private var setup: OnboardingWindow?
 
     /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
@@ -113,7 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         botTask?.cancel()
         let cfg = Config.load()
         guard let token = cfg.token else { return }
-        let bot = Bot(cfg: cfg, token: token, store: store, onClaim: { [weak self] name in
+        claimCode = UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(16).lowercased()
+        setup?.model.claimCode = claimCode
+        let bot = Bot(cfg: cfg, token: token, store: store, claimCode: claimCode, onClaim: { [weak self] name in
             await MainActor.run { self?.claimed(by: name) }
         })
         botTask = Task { await bot.run() }
@@ -128,6 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if setup == nil {
             setup = OnboardingWindow(model: Onboarding(
                 config: Config.load(),
+                claimCode: claimCode,
+                launchAtLogin: !UserDefaults.standard.bool(forKey: loginOffKey),
                 connect: { [unowned self] token in
                     Config.set("TELEGRAM_BOT_TOKEN", token)
                     Config.set("TELEGRAM_USER_ID", "")  // a new bot gets a new owner: whoever presses Start

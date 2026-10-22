@@ -31,13 +31,16 @@ final class Bot {
     let store: Store
     /// Who the bot works for. Nil right after setup: the first person to message it becomes the owner.
     private var owner: Int64?
+    /// Only "/start <claimCode>" can claim an ownerless bot; the setup window's link carries the code.
+    private let claimCode: String
     private let onClaim: (String) async -> Void
 
-    init(cfg: Config, token: String, store: Store, onClaim: @escaping (String) async -> Void) {
+    init(cfg: Config, token: String, store: Store, claimCode: String, onClaim: @escaping (String) async -> Void) {
         self.cfg = cfg
         self.token = token
         self.store = store
         self.owner = cfg.userId
+        self.claimCode = claimCode
         self.onClaim = onClaim
     }
 
@@ -67,8 +70,13 @@ final class Bot {
         guard let user = m.from else { return }
         let from = user.id
         guard let owner else {
-            // ponytail: first sender wins; the setup window shows who it was, and the token is fresh, so
-            // nobody else knows the bot yet. Reset by running the setup again with a new token.
+            // Claim only through the setup window's link (a one-time code), never by a stray or old message,
+            // and never from a bot that a newer token has already replaced.
+            guard m.text == "/start \(claimCode)", !Task.isCancelled, Config.load().token == token else {
+                await reply(m.chat.id, tr("Чтобы привязать бота, открой его по кнопке в окне настройки на маке.",
+                                         "To claim this bot, open it with the button in the setup window on your Mac."))
+                return
+            }
             owner = from
             Config.set("TELEGRAM_USER_ID", String(from))
             await reply(m.chat.id, tr("Готово, бот привязан к тебе. Пиши или наговаривай мысли — они станут стикерами на маке.",

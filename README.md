@@ -99,15 +99,15 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 2. **Follow the setup window** that opens on first launch:
    1. **Create a bot**: the window links to [@BotFather](https://t.me/BotFather); send `/newbot`, pick a name
       and a username ending in “bot”, and paste the token it sends you. The app checks it right away.
-   2. **Press Start in your bot**: the window links to it. Your first message makes you the bot's owner;
-      from then on it ignores everyone else. No IDs to copy.
+   2. **Press Start in your bot**: the window links to it. Opening it with that button and pressing Start makes you
+      the bot's owner (the link carries a one-time code); from then on it ignores everyone else. No IDs to copy.
    3. **Done**: choose whether the app opens at login, and start sending thoughts.
 
    The window also checks the tools on your Mac (ffmpeg, whisper.cpp and its model, Claude Code) and
    gives a copyable install command for anything missing. Open it again any time from the icon's menu:
    **Set up the bot…** (also to switch to a different bot).
 
-Prefer files? The setup window only writes `~/.config/ai-stickers.env` (see below); you can write it yourself.
+Prefer files? The bot settings the window saves live in `~/.config/ai-stickers.env` (see below); you can write it yourself.
 
 ## Configuration
 

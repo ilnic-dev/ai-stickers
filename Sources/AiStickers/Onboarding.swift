@@ -12,7 +12,8 @@ final class Onboarding {
     var owner: String?
     var checking = false
     var error: String?
-    var launchAtLogin = true
+    var launchAtLogin: Bool
+    var claimCode: String
     var tools = Tool.check()
 
     /// The app saves the token and (re)starts the bot with it.
@@ -20,7 +21,10 @@ final class Onboarding {
     /// "Start" pressed on the last step, with the launch-at-login choice.
     let finish: (Bool) -> Void
 
-    init(config: Config, connect: @escaping (String) -> Void, finish: @escaping (Bool) -> Void) {
+    init(config: Config, claimCode: String, launchAtLogin: Bool,
+         connect: @escaping (String) -> Void, finish: @escaping (Bool) -> Void) {
+        self.claimCode = claimCode
+        self.launchAtLogin = launchAtLogin
         self.connect = connect
         self.finish = finish
         step = config.token == nil ? .token : config.userId == nil ? .start : .done
@@ -144,16 +148,18 @@ struct OnboardingView: View {
 
             StepCard(number: 2, title: tr("Нажми Start у своего бота", "Press Start in your bot"),
                      state: state(of: .start), summary: model.owner) {
-                Text(tr("Так бот узнает, что это ты: дальше он будет принимать сообщения только от тебя.",
-                        "That's how the bot learns it's you: from then on it only accepts your messages."))
+                Text(tr("Открой бота кнопкой ниже и нажми Start: так он узнает, что это ты, и дальше будет принимать сообщения только от тебя.",
+                        "Open the bot with the button below and press Start: that's how it learns it's you, and from then on it only accepts your messages."))
                     .fixedSize(horizontal: false, vertical: true)
                 if let name = model.botName {
-                    Button(tr("Открыть @\(name) в Telegram", "Open @\(name) in Telegram")) { open("https://t.me/\(name)") }
+                    Button(tr("Открыть @\(name) в Telegram", "Open @\(name) in Telegram")) { open("https://t.me/\(name)?start=\(model.claimCode)") }
                 }
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text(tr("Жду твоё сообщение боту…", "Waiting for your message to the bot…")).foregroundStyle(.secondary)
                 }
+                Button(tr("Это не тот бот — вставить другой токен", "Wrong bot — paste a different token")) { model.startOver() }
+                    .buttonStyle(.link)
             }
 
             StepCard(number: 3, title: tr("Готово", "Done"), state: state(of: .done), summary: nil) {
