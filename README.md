@@ -79,14 +79,7 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 
 ## Install
 
-1. **Create a bot.** Message [@BotFather](https://t.me/BotFather), send `/newbot`, copy the token.
-2. **Write the config** at `~/.config/ai-stickers.env`:
-
-   ```
-   TELEGRAM_BOT_TOKEN=123456:ABC...
-   ```
-
-3. **Get the app**, one of two ways:
+1. **Get the app**, one of two ways:
 
    - **Download** `AI-Stickers-<version>.zip` from the [latest release](https://github.com/nitsiyevskii/ai-stickers/releases/latest),
      unzip it, move **AI Stickers.app** to Applications and open it. The app isn't notarized, so macOS
@@ -103,16 +96,18 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
      This builds `AI Stickers.app`, copies it to `/Applications` and starts it. Run the same command
      to update after pulling new code.
 
-   On first launch the app asks whether to open at login; change it later in the icon's menu.
+2. **Follow the setup window** that opens on first launch:
+   1. **Create a bot**: the window links to [@BotFather](https://t.me/BotFather); send `/newbot`, pick a name
+      and a username ending in “bot”, and paste the token it sends you. The app checks it right away.
+   2. **Press Start in your bot**: the window links to it. Your first message makes you the bot's owner;
+      from then on it ignores everyone else. No IDs to copy.
+   3. **Done**: choose whether the app opens at login, and start sending thoughts.
 
-4. **Claim the bot.** Send it any message. It replies with your Telegram ID; add it to the config:
+   The window also checks the tools on your Mac (ffmpeg, whisper.cpp and its model, Claude Code) and
+   gives a copyable install command for anything missing. Open it again any time from the icon's menu:
+   **Set up the bot…** (also to switch to a different bot).
 
-   ```
-   TELEGRAM_USER_ID=123456789
-   ```
-
-   Then restart the app (right-click the menu bar icon → «Выйти», then open AI Stickers from Applications).
-   From now on the bot accepts messages only from you and ignores everyone else.
+Prefer files? The setup window only writes `~/.config/ai-stickers.env` (see below); you can write it yourself.
 
 ## Configuration
 
@@ -120,8 +115,8 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 
 | Key | Required | Default |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | yes | — |
-| `TELEGRAM_USER_ID` | yes, after step 4 | — |
+| `TELEGRAM_BOT_TOKEN` | yes (the setup window writes it) | — |
+| `TELEGRAM_USER_ID` | set automatically when you press Start in your bot | — |
 | `WHISPER_MODEL` | no | `ggml-large-v3.bin` in `~/.cache/hyperframes/whisper/models/` if present, else `ggml-small.bin` there |
 | `WHISPER_PROMPT` | no | — (extra words to expect, e.g. `Notion, Figma, my-project`) |
 | `FFMPEG` | no | `/opt/homebrew/bin/ffmpeg` |
@@ -150,6 +145,7 @@ swift run                   # dev run: no launch at login, no single-instance ch
 | File | Role |
 |---|---|
 | `Sources/AiStickers/main.swift` | config, menu bar menu, launch at login, startup |
+| `Sources/AiStickers/Onboarding.swift` | the setup window: bot token, owner, tools check |
 | `Sources/AiStickers/Bot.swift` | Telegram polling, voice → text, idea → sticker via `claude -p` |
 | `Sources/AiStickers/Store.swift` | sticker model, JSON storage, filters and tags (pure, tested) |
 | `Sources/AiStickers/Board.swift` | windows: the menu bar panel, pinned stickers, dragging |

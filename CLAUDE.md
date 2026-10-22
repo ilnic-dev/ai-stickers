@@ -16,6 +16,7 @@ Run it yourself. There is no CI: verification is local, PRs are still required.
 - `Store.swift`: `Sticker` model, JSON persistence, pure filtering/tag logic. No AppKit.
 - `Board.swift` / `Views.swift`: windows and SwiftUI views. Read and mutate state only through `Store`.
 - `main.swift`: config loading and app wiring.
+- `Onboarding.swift`: the setup window; writes the config only through `Config.set`.
 
 Boundary rules:
 - UI never writes `stickers.json` directly; `Store` is the only writer.

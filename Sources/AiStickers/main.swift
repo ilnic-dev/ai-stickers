@@ -4,7 +4,7 @@ import ServiceManagement
 struct Config {
     static let path = NSString(string: "~/.config/ai-stickers.env").expandingTildeInPath
 
-    let token: String
+    let token: String?
     let userId: Int64?
     let ffmpeg: String
     let whisper: String
@@ -12,18 +12,20 @@ struct Config {
     let whisperPrompt: String  // extra words whisper should expect, e.g. names and jargon you use
     let claude: String
 
+    /// Both the token and the owner are known; until then the setup window is what the app shows.
+    var isSetUp: Bool { token != nil && userId != nil }
+
     // KEY=VALUE lines; a GUI app gets no shell PATH, so binaries are absolute paths.
-    static func load() -> Config? {
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+    static func load() -> Config {
         var env: [String: String] = [:]
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
         for line in text.split(separator: "\n") where !line.hasPrefix("#") {
             let kv = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
             if kv.count == 2 { env[kv[0]] = kv[1] }
         }
-        guard let token = env["TELEGRAM_BOT_TOKEN"], !token.isEmpty else { return nil }
         let home = NSHomeDirectory()
         return Config(
-            token: token,
+            token: env["TELEGRAM_BOT_TOKEN"].flatMap { $0.isEmpty ? nil : $0 },
             userId: env["TELEGRAM_USER_ID"].flatMap { Int64($0) },
             ffmpeg: env["FFMPEG", default: "/opt/homebrew/bin/ffmpeg"],
             whisper: env["WHISPER_CLI", default: "/opt/homebrew/bin/whisper-cli"],
@@ -35,6 +37,19 @@ struct Config {
             claude: env["CLAUDE_BIN", default: "\(home)/.local/bin/claude"]
         )
     }
+
+    /// Sets one key in the config file, keeping every other line. The file holds the bot token: owner-only.
+    static func set(_ key: String, _ value: String, in file: String = path) {
+        let url = URL(fileURLWithPath: file)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        lines.removeAll { $0.split(separator: "=", maxSplits: 1).first?.trimmingCharacters(in: .whitespaces) == key }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        lines.append("\(key)=\(value)")
+        try? (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file)
+    }
 }
 
 @MainActor
@@ -44,7 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var status: NSStatusItem!
     private var menu = NSMenu()
     private var loginItem = NSMenuItem()
-    private var configMissing = false
+    private var botTask: Task<Void, Never>?
+    private var setup: OnboardingWindow?
 
     /// Launch at login and the single-instance check need an .app bundle; `swift run` has none.
     private var bundleID: String? { Bundle.main.bundleIdentifier }
@@ -83,15 +99,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showCount()
         board.start()
 
-        if let cfg = Config.load() {
-            Task { await Bot(cfg: cfg, store: store).run() }
-        } else {
-            configMissing = true
-        }
+        startBot()
         buildMenu()
-        if bundleID != nil && !UserDefaults.standard.bool(forKey: loginAskedKey) {
+        if !Config.load().isSetUp {
+            showSetup()  // asks about launch at login on its last step
+        } else if bundleID != nil && !UserDefaults.standard.bool(forKey: loginAskedKey) {
             DispatchQueue.main.async { self.askLaunchAtLogin() }  // after the icon is up
         }
+    }
+
+    /// (Re)starts the bot with whatever token the config holds; the old one stops polling.
+    private func startBot() {
+        botTask?.cancel()
+        let cfg = Config.load()
+        guard let token = cfg.token else { return }
+        let bot = Bot(cfg: cfg, token: token, store: store, onClaim: { [weak self] name in
+            await MainActor.run { self?.claimed(by: name) }
+        })
+        botTask = Task { await bot.run() }
+    }
+
+    private func claimed(by name: String) {
+        setup?.model.claimed(by: name)
+        buildMenu()
+    }
+
+    @objc private func showSetup() {
+        if setup == nil {
+            setup = OnboardingWindow(model: Onboarding(
+                config: Config.load(),
+                connect: { [unowned self] token in
+                    Config.set("TELEGRAM_BOT_TOKEN", token)
+                    Config.set("TELEGRAM_USER_ID", "")  // a new bot gets a new owner: whoever presses Start
+                    startBot()
+                    buildMenu()
+                },
+                finish: { [unowned self] launchAtLogin in
+                    if bundleID != nil {
+                        UserDefaults.standard.set(!launchAtLogin, forKey: loginOffKey)
+                        UserDefaults.standard.set(true, forKey: loginAskedKey)
+                        applyLaunchAtLogin()
+                    }
+                    setup = nil
+                    board.setOpen(true)
+                }))
+        }
+        setup?.show()
     }
 
     /// First launch only: whether to start with the Mac is the user's call, not a silent default.
@@ -113,11 +166,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         let menu = NSMenu()
         menu.autoenablesItems = false  // so the disabled login item stays disabled under `swift run`
-        if configMissing {
-            menu.addItem(withTitle: tr("⚠️ Нет TELEGRAM_BOT_TOKEN в ", "⚠️ No TELEGRAM_BOT_TOKEN in ") + Config.path, action: nil, keyEquivalent: "")
+        if !Config.load().isSetUp {
+            menu.addItem(withTitle: tr("⚠️ Бот не подключён — настроить…", "⚠️ Bot not connected — set up…"), action: #selector(showSetup), keyEquivalent: "").target = self
             menu.addItem(.separator())
         }
         menu.addItem(withTitle: tr("Показать идеи", "Show ideas"), action: #selector(showIdeas), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("Настроить бота…", "Set up the bot…"), action: #selector(showSetup), keyEquivalent: "").target = self
 
         loginItem = NSMenuItem(title: "", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         loginItem.target = self
@@ -146,8 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func statusClicked() {
         let event = NSApp.currentEvent
-        // Without a token the menu is where the warning is, so a plain click shows it too.
-        if configMissing || event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+        if !Config.load().isSetUp && event?.type != .rightMouseUp {
+            showSetup()  // nothing to show in the panel until the bot is connected
+        } else if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
             status.button?.highlight(true)
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: (status.button?.bounds.height ?? 22) + 4), in: status.button)
             status.button?.highlight(false)
