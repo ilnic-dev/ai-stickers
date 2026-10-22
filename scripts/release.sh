@@ -26,7 +26,7 @@ cat > "$notes" <<EOF
 
 1. Download **AI-Stickers-$version.zip** below, unzip it and move **AI Stickers.app** to Applications.
 2. Open it. macOS stops the first launch because the app isn't notarized: open **System Settings → Privacy & Security** and click **Open Anyway** (or run \`xattr -dr com.apple.quarantine "/Applications/AI Stickers.app"\`).
-3. Set up the bot, the config and the tools it uses (ffmpeg, whisper.cpp, Claude Code): see [Install](https://github.com/nitsiyevskii/ai-stickers#install) in the README.
+3. Set up the bot, the config and the tools it uses (ffmpeg, whisper.cpp, Claude Code): see [Install](https://github.com/ilnic-dev/ai-stickers#install) in the README.
 
 Universal build: Apple Silicon and Intel, macOS 14 or later.
 
@@ -36,7 +36,7 @@ Universal build: Apple Silicon and Intel, macOS 14 or later.
 
 1. Скачай **AI-Stickers-$version.zip** ниже, распакуй и перетащи **AI Stickers.app** в «Программы».
 2. Открой. macOS остановит первый запуск, потому что приложение не нотаризовано: **Системные настройки → Конфиденциальность и безопасность → «Всё равно открыть»** (или \`xattr -dr com.apple.quarantine "/Applications/AI Stickers.app"\`).
-3. Настрой бота, конфиг и инструменты (ffmpeg, whisper.cpp, Claude Code): раздел [Установка](https://github.com/nitsiyevskii/ai-stickers/blob/main/README.ru.md#установка) в README.
+3. Настрой бота, конфиг и инструменты (ffmpeg, whisper.cpp, Claude Code): раздел [Установка](https://github.com/ilnic-dev/ai-stickers/blob/main/README.ru.md#установка) в README.
 EOF
 
 gh release create "$tag" "$zip" --title "AI Stickers $version" --notes-file "$notes" --target main

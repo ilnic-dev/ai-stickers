@@ -81,14 +81,14 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 
 1. **Get the app**, one of two ways:
 
-   - **Download** `AI-Stickers-<version>.zip` from the [latest release](https://github.com/nitsiyevskii/ai-stickers/releases/latest),
+   - **Download** `AI-Stickers-<version>.zip` from the [latest release](https://github.com/ilnic-dev/ai-stickers/releases/latest),
      unzip it, move **AI Stickers.app** to Applications and open it. The app isn't notarized, so macOS
      blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway**
      (or run `xattr -dr com.apple.quarantine "/Applications/AI Stickers.app"`).
    - **Or build it** (needs Xcode or the Command Line Tools):
 
      ```bash
-     git clone https://github.com/nitsiyevskii/ai-stickers.git
+     git clone https://github.com/ilnic-dev/ai-stickers.git
      cd ai-stickers
      ./scripts/install.sh
      ```
