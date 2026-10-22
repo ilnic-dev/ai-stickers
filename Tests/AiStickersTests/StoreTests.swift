@@ -115,3 +115,14 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(clipboardText(s) == "Запуск сайта\n\nЛендинг и форма заявки.\n\n- [ ] Тексты\n- [x] Домен\n\n#бизнес")
     #expect(clipboardText(Sticker(title: "t", summary: "t", todo: [], raw: "")) == "t")
 }
+
+@Test func configSetKeepsOtherLinesAndHidesTheFile() throws {
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("cfg-\(UUID())/ai-stickers.env").path
+    defer { try? FileManager.default.removeItem(atPath: (file as NSString).deletingLastPathComponent) }
+    Config.set("TELEGRAM_BOT_TOKEN", "1:old", in: file)
+    Config.set("WHISPER_PROMPT", "Notion", in: file)
+    Config.set("TELEGRAM_BOT_TOKEN", "2:new", in: file)
+    #expect(try String(contentsOfFile: file, encoding: .utf8) == "WHISPER_PROMPT=Notion\nTELEGRAM_BOT_TOKEN=2:new\n")
+    let perms = try FileManager.default.attributesOfItem(atPath: file)[.posixPermissions] as? Int
+    #expect(perms == 0o600)
+}

@@ -9,9 +9,10 @@ private struct Response<T: Decodable>: Decodable { let ok: Bool; let result: T?;
 private struct Update: Decodable { let update_id: Int; let message: Message? }
 private struct Message: Decodable {
     struct Ref: Decodable { let id: Int64 }
+    struct User: Decodable { let id: Int64; let first_name: String?; let username: String? }
     struct FileRef: Decodable { let file_id: String }
     let chat: Ref
-    let from: Ref?
+    let from: User?
     let text: String?
     let caption: String?
     let voice: FileRef?
@@ -19,17 +20,39 @@ private struct Message: Decodable {
     let video_note: FileRef?
 }
 private struct TGFile: Decodable { let file_path: String }
+private struct BotInfo: Decodable { let username: String }
 private struct Note: Decodable { let title: String; let summary: String; let todo: [String]; let tags: [String] }
 private struct ClaudeOutput: Decodable { let structured_output: Note? }
 
 /// Telegram long polling is the queue: ideas sent while the Mac sleeps wait on Telegram's side (up to 24h).
-struct Bot {
+final class Bot {
     let cfg: Config
+    let token: String
     let store: Store
+    /// Who the bot works for. Nil right after setup: the first person to message it becomes the owner.
+    private var owner: Int64?
+    /// Only "/start <claimCode>" can claim an ownerless bot; the setup window's link carries the code.
+    private let claimCode: String
+    private let onClaim: (String) async -> Void
+
+    init(cfg: Config, token: String, store: Store, claimCode: String, onClaim: @escaping (String) async -> Void) {
+        self.cfg = cfg
+        self.token = token
+        self.store = store
+        self.owner = cfg.userId
+        self.claimCode = claimCode
+        self.onClaim = onClaim
+    }
+
+    /// The bot's @username, which also proves the token works.
+    static func username(token: String) async throws -> String {
+        let info: BotInfo = try await telegram(token, "getMe", [:])
+        return info.username
+    }
 
     func run() async {
         var offset = 0
-        while true {
+        while !Task.isCancelled {  // cancelled when the setup window switches to a new token
             do {
                 let updates: [Update] = try await call("getUpdates", ["offset": offset, "timeout": 50, "allowed_updates": ["message"]])
                 for u in updates {
@@ -44,10 +67,21 @@ struct Bot {
     }
 
     private func handle(_ m: Message) async {
-        guard let from = m.from?.id else { return }
-        guard let owner = cfg.userId else {
-            await reply(m.chat.id, tr("Твой Telegram ID: \(from)\nДобавь строку TELEGRAM_USER_ID=\(from) в \(Config.path) и перезапусти приложение.",
-                                     "Your Telegram ID: \(from)\nAdd the line TELEGRAM_USER_ID=\(from) to \(Config.path) and restart the app."))
+        guard let user = m.from else { return }
+        let from = user.id
+        guard let owner else {
+            // Claim only through the setup window's link (a one-time code), never by a stray or old message,
+            // and never from a bot that a newer token has already replaced.
+            guard m.text == "/start \(claimCode)", !Task.isCancelled, Config.load().token == token else {
+                await reply(m.chat.id, tr("Чтобы привязать бота, открой его по кнопке в окне настройки на маке.",
+                                         "To claim this bot, open it with the button in the setup window on your Mac."))
+                return
+            }
+            owner = from
+            Config.set("TELEGRAM_USER_ID", String(from))
+            await reply(m.chat.id, tr("Готово, бот привязан к тебе. Пиши или наговаривай мысли — они станут стикерами на маке.",
+                                     "Done, the bot is yours now. Send thoughts as text or voice — they become sticky notes on your Mac."))
+            await onClaim(user.username.map { "@" + $0 } ?? user.first_name ?? String(from))
             return
         }
         guard from == owner else { return }
@@ -82,7 +116,7 @@ struct Bot {
     /// without it "usage в Claude" comes out as "юзидж в клад", even on large-v3.
     private func transcribe(_ fileId: String, vocabulary: [String]) async throws -> String {
         let file: TGFile = try await call("getFile", ["file_id": fileId])
-        let url = URL(string: "https://api.telegram.org/file/bot\(cfg.token)/\(file.file_path)")!
+        let url = URL(string: "https://api.telegram.org/file/bot\(token)/\(file.file_path)")!
         let (data, _) = try await URLSession.shared.data(from: url)
 
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -139,16 +173,20 @@ struct Bot {
     }
 
     private func call<T: Decodable>(_ method: String, _ params: [String: Any]) async throws -> T {
-        var req = URLRequest(url: URL(string: "https://api.telegram.org/bot\(cfg.token)/\(method)")!)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: params)
-        req.timeoutInterval = 70
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let r = try JSONDecoder().decode(Response<T>.self, from: data)
-        guard r.ok, let result = r.result else { throw BotError("\(method): \(r.description ?? "unknown error")") }
-        return result
+        try await telegram(token, method, params)
     }
+}
+
+private func telegram<T: Decodable>(_ token: String, _ method: String, _ params: [String: Any]) async throws -> T {
+    var req = URLRequest(url: URL(string: "https://api.telegram.org/bot\(token)/\(method)")!)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONSerialization.data(withJSONObject: params)
+    req.timeoutInterval = 70
+    let (data, _) = try await URLSession.shared.data(for: req)
+    let r = try JSONDecoder().decode(Response<T>.self, from: data)
+    guard r.ok, let result = r.result else { throw BotError("\(method): \(r.description ?? "unknown error")") }
+    return result
 }
 
 /// URLError carries the request URL, which contains the bot token: never print or send it.
