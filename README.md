@@ -165,7 +165,7 @@ that explains what changed and how it works. Rules for contributors and coding a
 - Telegram is the only input for now.
 - The download is ad-hoc signed, not notarized: macOS asks you to confirm the first launch once.
 - Tag colors follow alphabetical order, so adding a tag can shift the colors of others.
-- macOS has no public way to put a window on a given desktop, so after a relaunch all pinned stickers start on the current desktop; move them back once and they stay.
+- macOS has no public way to put a window on a given desktop, so after a relaunch (or when you turn «Stickers on every desktop» off) all pinned stickers gather on the current desktop. To move a sticker to another desktop: send it back to the panel, switch to that desktop, drag it out again — it stays there.
 
 ## License
 
