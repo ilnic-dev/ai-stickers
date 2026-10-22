@@ -517,7 +517,7 @@ struct StatusPriorityPicker: View {
                     Button { store.update(sticker.id) { $0.priority = priority } } label: {
                         HStack(spacing: 5) {
                             if priority != .none {
-                                FlagIcon(priority: priority, color: on ? Palette.panel : nil, size: 10)
+                                FlagIcon(priority: priority, color: on ? Palette.panel : nil, size: 10).accessibilityHidden(true)  // the chip says it
                             }
                             Text(priority.label)
                         }
