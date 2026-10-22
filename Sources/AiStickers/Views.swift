@@ -212,19 +212,23 @@ struct CardView: View {
                 }
             }
             if expanded {
-                Text(sticker.summary)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.inkSoft)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
-                if !sticker.todo.isEmpty { TodoList(sticker: sticker, store: store).padding(.top, 10) }
-                StatusPriorityPicker(sticker: sticker, store: store).padding(.top, 12)
-                TagEditor(sticker: sticker, store: store, state: state).padding(.top, 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(sticker.summary)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 6)
+                    if !sticker.todo.isEmpty { TodoList(sticker: sticker, store: store).padding(.top, 10) }
+                    StatusPriorityPicker(sticker: sticker, store: store).padding(.top, 12)
+                    TagEditor(sticker: sticker, store: store, state: state).padding(.top, 10)
+                }
+                .transition(.revealed)
             }
             MetaRow(sticker: sticker, store: store, showTags: !expanded).padding(.top, 8)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+        .clipShape(RoundedRectangle(cornerRadius: 10))  // the open part is uncovered as the card grows, never outside it
         .foregroundStyle(Palette.ink)
         .background(RoundedRectangle(cornerRadius: 10).fill(Palette.sticky(sticker.status))
             .shadow(color: Color(hex: 0x3C2D0A).opacity(expanded ? 0.18 : 0.10), radius: expanded ? 9 : 1, y: expanded ? 6 : 1))
@@ -406,12 +410,18 @@ struct PinnedView: View {
                     .foregroundStyle(Palette.inkSoft)
                     .lineLimit(expanded ? nil : 2)
                     .padding(.top, 6)
-                if expanded && !s.todo.isEmpty { TodoList(sticker: s, store: store).padding(.top, 10) }
-                if expanded { StatusPriorityPicker(sticker: s, store: store).padding(.top, 12) }
+                if expanded {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !s.todo.isEmpty { TodoList(sticker: s, store: store).padding(.top, 10) }
+                        StatusPriorityPicker(sticker: s, store: store).padding(.top, 12)
+                    }
+                    .transition(.revealed)
+                }
                 MetaRow(sticker: s, store: store, showTags: true).padding(.top, 8)
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
             .frame(width: expanded ? 280 : 220, alignment: .leading)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, bottomLeadingRadius: 4, bottomTrailingRadius: 14, topTrailingRadius: 4))
             .foregroundStyle(Palette.ink)
             .background(UnevenRoundedRectangle(topLeadingRadius: 4, bottomLeadingRadius: 4, bottomTrailingRadius: 14, topTrailingRadius: 4)
                 .fill(Palette.sticky(s.status)).shadow(color: .black.opacity(0.32), radius: 14, y: 10))
@@ -632,6 +642,14 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .help(label)
         .accessibilityLabel(label)
+    }
+}
+
+extension AnyTransition {
+    /// The open part of a card fades in a beat after the card starts to grow, and out at once.
+    static var revealed: AnyTransition {
+        .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.14).delay(0.06)),
+                    removal: .opacity.animation(.easeOut(duration: 0.08)))
     }
 }
 
