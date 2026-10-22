@@ -2,14 +2,17 @@ import Foundation
 import Testing
 @testable import AiStickers
 
-private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false, age: TimeInterval = 0) -> Sticker {
-    Sticker(created: Date(timeIntervalSince1970: 1_000_000 - age), title: title, summary: "", todo: [], raw: "", tags: tags, pinned: pinned)
+private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false, age: TimeInterval = 0,
+                     status: StickerStatus = .new, priority: Priority = .none) -> Sticker {
+    Sticker(created: Date(timeIntervalSince1970: 1_000_000 - age), title: title, summary: "", todo: [], raw: "",
+            tags: tags, pinned: pinned, status: status, priority: priority)
 }
 
 @Test func v0FileStillLoads() throws {
     let v0 = #"[{"id":"11111111-1111-1111-1111-111111111111","created":782000000,"title":"t","summary":"s","todo":["a","b"],"raw":"r","left":12,"top":800}]"#
     let s = try #require(try JSONDecoder().decode([Sticker].self, from: Data(v0.utf8)).first)
     #expect(s.tags.isEmpty && s.done.isEmpty && !s.pinned && s.left == 12)
+    #expect(s.status == .new && s.priority == .none)
     #expect(s.openTodos == 2)
 }
 
@@ -56,11 +59,15 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(clampTopLeft(CGPoint(x: 5, y: 5), card: card, screens: []) == CGPoint(x: 5, y: 5))
 }
 
-@Test func panelHidesPinnedAndLater() {
-    let all = [sticker("a"), sticker("pinned", pinned: true), sticker("later", tags: [laterTag])]
-    #expect(panelStickers(all, filter: [], showLater: false).map(\.title) == ["a"])
-    #expect(panelStickers(all, filter: [], showLater: true).map(\.title) == ["a", "later"])
-    #expect(panelStickers(all, filter: [laterTag], showLater: false).map(\.title) == ["later"])
+@Test func panelHidesPinnedAndPostponed() {
+    let all = [sticker("a"), sticker("pinned", pinned: true), sticker("later", status: .postponed)]
+    #expect(panelStickers(all, filter: [], showPostponed: false).map(\.title) == ["a"])
+    #expect(panelStickers(all, filter: [], showPostponed: true).map(\.title) == ["a", "later"])
+}
+
+@Test func higherPriorityComesFirst() {
+    let all = [sticker("new"), sticker("old urgent", age: 100, priority: .high), sticker("medium", age: 50, priority: .medium)]
+    #expect(panelStickers(all, filter: [], showPostponed: false).map(\.title) == ["old urgent", "medium", "new"])
 }
 
 @Test func filterMatchesAnyTagNewestFirst() {
@@ -70,13 +77,13 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
         sticker("personal", tags: ["личное"]),
         sticker("new video", tags: ["видео", "бизнес"]),
     ]
-    #expect(panelStickers(all, filter: ["видео", "бизнес"], showLater: false).map(\.title) == ["new video", "biz", "old video"])
+    #expect(panelStickers(all, filter: ["видео", "бизнес"], showPostponed: false).map(\.title) == ["new video", "biz", "old video"])
 }
 
-@Test func vocabularyByUseWithLaterLast() {
-    let all = [sticker("1", tags: ["b", laterTag]), sticker("2", tags: ["a", "b"]), sticker("3", tags: ["c"])]
-    #expect(tagVocabulary(all) == ["b", "a", "c", laterTag])
-    #expect(tagVocabulary([]) == [laterTag])
+@Test func vocabularyByUse() {
+    let all = [sticker("1", tags: ["b"]), sticker("2", tags: ["a", "b"]), sticker("3", tags: ["c"])]
+    #expect(tagVocabulary(all) == ["b", "a", "c"])
+    #expect(tagVocabulary([]).isEmpty)
 }
 
 @Test func tagsAreNormalized() {
@@ -102,12 +109,13 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(hashtags(in: "посмотреть потом #later") == [laterTag])
 }
 
-@Test @MainActor func oldLaterTagIsFoldedIntoBuiltIn() throws {
+@Test @MainActor func oldLaterTagBecomesPostponed() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("stickers-\(UUID()).json")
     defer { try? FileManager.default.removeItem(at: url) }
     let old = #"[{"id":"11111111-1111-1111-1111-111111111111","created":0,"title":"t","summary":"s","todo":[],"raw":"r","tags":["later","видео","позже"]}]"#
     try Data(old.utf8).write(to: url)
-    #expect(Store(url: url).stickers.first?.tags == [laterTag, "видео"])
+    let s = try #require(Store(url: url).stickers.first)
+    #expect(s.tags == ["видео"] && s.status == .postponed)
 }
 
 @Test func copiedStickerReadsAsANote() {
@@ -125,4 +133,22 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     #expect(try String(contentsOfFile: file, encoding: .utf8) == "WHISPER_PROMPT=Notion\nTELEGRAM_BOT_TOKEN=2:new\n")
     let perms = try FileManager.default.attributesOfItem(atPath: file)[.posixPermissions] as? Int
     #expect(perms == 0o600)
+}
+
+@Test func copyMentionsStatusAndPriority() {
+    let s = Sticker(title: "t", summary: "s", todo: [], raw: "", status: .inProgress, priority: .high)
+    let marks = StickerStatus.inProgress.label + " · " + tr("приоритет: ", "priority: ") + Priority.high.label.lowercased()
+    #expect(clipboardText(s) == "t\n\ns\n\n" + marks)
+}
+
+@Test func openCardKeepsItsPlace() {
+    let a = sticker("a"), b = sticker("b"), c = sticker("c")
+    #expect(keepingOrder([b, a, c], nil).map(\.title) == ["b", "a", "c"])
+    #expect(keepingOrder([b, a, c], [a.id, b.id]).map(\.title) == ["a", "b", "c"])
+}
+
+@Test func unknownStatusFromANewerBuildLoadsAsNew() throws {
+    let json = #"[{"id":"11111111-1111-1111-1111-111111111111","created":0,"title":"t","summary":"s","todo":[],"raw":"r","status":"archived","priority":9}]"#
+    let s = try #require(try JSONDecoder().decode([Sticker].self, from: Data(json.utf8)).first)
+    #expect(s.status == .new && s.priority == .none)
 }

@@ -14,9 +14,26 @@ enum Palette {
     /// Alphabetical position among all tags: distinct colors for up to 8 tags.
     // ponytail: a new tag can shift other tags' colors; persist colors if that gets annoying.
     static func tag(_ name: String, in vocabulary: [String]) -> Color {
-        if name == laterTag { return Color(hex: 0x78716C) }
-        let i = vocabulary.filter { $0 != laterTag }.sorted().firstIndex(of: name) ?? 0
+        let i = vocabulary.sorted().firstIndex(of: name) ?? 0
         return Color(hex: tags[i % tags.count])
+    }
+
+    /// The whole card takes its status color, so a list (or the desktop) reads at a glance.
+    static func sticky(_ status: StickerStatus) -> Color {
+        switch status {
+        case .new: Color(hex: 0xFFE9A8)
+        case .inProgress: Color(hex: 0xCFE6FF)
+        case .onHold: Color(hex: 0xFFD6B0)
+        case .postponed: Color(hex: 0xE5E1D8)
+        }
+    }
+
+    static func flag(_ priority: Priority) -> Color {
+        switch priority {
+        case .none, .low: Color(hex: 0x6B7280)
+        case .medium: Color(hex: 0xB45309)
+        case .high: Color(hex: 0xDC2626)
+        }
     }
 }
 
@@ -42,9 +59,9 @@ struct PanelView: View {
 
     var body: some View {
         let inPanel = store.stickers.filter { !$0.pinned }
-        let active = store.stickers.filter { !$0.isLater }  // pinned ones too: they are still open ideas
-        let list = panelStickers(store.stickers, filter: state.filter, showLater: state.showLater)
-        let laterCount = inPanel.filter(\.isLater).count
+        let active = store.stickers.filter { !$0.isPostponed }  // pinned ones too: they are still open ideas
+        let list = panelStickers(store.stickers, filter: state.filter, showPostponed: state.showLater)
+        let laterCount = inPanel.filter(\.isPostponed).count
         let counts = Dictionary(inPanel.flatMap(\.tags).map { ($0, 1) }, uniquingKeysWith: +)
 
         VStack(spacing: 0) {
@@ -83,7 +100,7 @@ struct PanelView: View {
                 // Selected tags stay visible even when no sticker has them any more, so they can be unselected.
                 let shown = store.vocabulary.filter { counts[$0, default: 0] > 0 } + state.filter.subtracting(Set(inPanel.flatMap(\.tags))).sorted()
                 ForEach(shown, id: \.self) { t in
-                    FilterChip(label: tagLabel(t), count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
+                    FilterChip(label: t, count: counts[t], color: Palette.tag(t, in: store.vocabulary), on: state.filter.contains(t)) {
                         if state.filter.contains(t) { state.filter.remove(t) } else { state.filter.insert(t) }
                     }
                 }
@@ -93,15 +110,16 @@ struct PanelView: View {
 
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(list) { s in CardView(sticker: s, store: store, state: state, board: board) }
+                    let shown = keepingOrder(list, state.frozenOrder)
+                    ForEach(shown) { s in CardView(sticker: s, store: store, state: state, board: board, order: shown.map(\.id)) }
                     if inPanel.isEmpty {
                         Text(tr("Пока пусто. Напиши мысль боту в Telegram.", "Nothing yet. Send a thought to the Telegram bot.")).emptyNote()
                     } else if list.isEmpty {
                         Text(tr("Нет идей с этими тегами", "No ideas with these tags")).emptyNote()
                     }
-                    if laterCount > 0 && !state.filter.contains(laterTag) {
+                    if laterCount > 0 {
                         Button { state.showLater.toggle() } label: {
-                            Text(state.showLater ? tr("Скрыть отложенные", "Hide later") : tr("Показать отложенные", "Show later") + " · \(laterCount)")
+                            Text(state.showLater ? tr("Скрыть отложенные", "Hide postponed") : tr("Показать отложенные", "Show postponed") + " · \(laterCount)")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(Color(hex: 0x4A443A))
                                 .padding(.horizontal, 12)
@@ -170,12 +188,15 @@ struct CardView: View {
     let store: Store
     let state: BoardState
     let board: Board
+    /// The list's order when this card was opened; frozen while it's open.
+    let order: [UUID]
     @GestureState private var dragging = false
 
     var body: some View {
         let expanded = state.hovered == sticker.id
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
+                if sticker.priority != .none { FlagIcon(priority: sticker.priority).padding(.top, 3) }
                 Text(sticker.title)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(expanded ? nil : 2)
@@ -197,6 +218,7 @@ struct CardView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
                 if !sticker.todo.isEmpty { TodoList(sticker: sticker, store: store).padding(.top, 10) }
+                StatusPriorityPicker(sticker: sticker, store: store).padding(.top, 12)
                 TagEditor(sticker: sticker, store: store, state: state).padding(.top, 10)
             }
             MetaRow(sticker: sticker, store: store, showTags: !expanded).padding(.top, 8)
@@ -204,16 +226,19 @@ struct CardView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .foregroundStyle(Palette.ink)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Palette.sticky)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Palette.sticky(sticker.status))
             .shadow(color: Color(hex: 0x3C2D0A).opacity(expanded ? 0.18 : 0.10), radius: expanded ? 9 : 1, y: expanded ? 6 : 1))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color(hex: 0x785A14).opacity(0.16)))
-        .opacity(sticker.isLater ? 0.75 : 1)
+        .opacity(sticker.isPostponed ? 0.75 : 1)
+        .animation(.easeOut(duration: 0.16), value: sticker.status)
         .contentShape(Rectangle())
         .onHover { inside in
             if inside {
+                if state.frozenOrder == nil { state.frozenOrder = order }
                 state.hovered = sticker.id
             } else if state.hovered == sticker.id {
                 state.hovered = nil
+                state.frozenOrder = nil
                 state.addingTag = nil
             }
         }
@@ -271,13 +296,13 @@ struct TagEditor: View {
                     Button { store.update(sticker.id) { $0.tags.removeAll { $0 == t } } } label: {
                         HStack(spacing: 5) {
                             TagDot(name: t, store: store)
-                            Text(tagLabel(t))
+                            Text(t)
                             Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.meta)
                         }
                         .chip(fill: .white.opacity(0.65))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(tr("Убрать тег ", "Remove tag ") + tagLabel(t))
+                    .accessibilityLabel(tr("Убрать тег ", "Remove tag ") + t)
                 }
                 Button { state.addingTag = open ? nil : sticker.id } label: {
                     Text(tr("+ тег", "+ tag"))
@@ -294,7 +319,7 @@ struct TagEditor: View {
                     FlowLayout(spacing: 6) {
                         ForEach(store.vocabulary.filter { !sticker.tags.contains($0) }, id: \.self) { t in
                             Button { add(t) } label: {
-                                HStack(spacing: 5) { TagDot(name: t, store: store); Text(tagLabel(t)) }.chip(fill: Palette.panel)
+                                HStack(spacing: 5) { TagDot(name: t, store: store); Text(t) }.chip(fill: Palette.panel)
                             }
                             .buttonStyle(.plain)
                         }
@@ -315,7 +340,8 @@ struct TagEditor: View {
 
     private func add(_ tag: String) {
         guard !tag.isEmpty, !sticker.tags.contains(tag) else { return }
-        store.update(sticker.id) { $0.tags.append(tag) }
+        // "позже"/"later" is the postponed status, as in a #hashtag, not a tag.
+        store.update(sticker.id) { if tag == laterTag { $0.status = .postponed } else { $0.tags.append(tag) } }
         state.addingTag = nil
     }
 }
@@ -327,6 +353,7 @@ struct MetaRow: View {
 
     var body: some View {
         FlowLayout(spacing: 8) {
+            if sticker.status != .new { Text(sticker.status.label).fontWeight(.semibold) }
             Text(when(sticker.created))
             if !sticker.todo.isEmpty {
                 Text(sticker.openTodos == 0 ? tr("всё сделано", "all done") : "\(sticker.openTodos) " + tr("из", "of") + " \(sticker.todo.count)")
@@ -337,7 +364,7 @@ struct MetaRow: View {
             }
             if showTags {
                 ForEach(sticker.tags, id: \.self) { t in
-                    HStack(spacing: 4) { TagDot(name: t, store: store); Text(tagLabel(t)) }
+                    HStack(spacing: 4) { TagDot(name: t, store: store); Text(t) }
                 }
             }
         }
@@ -362,6 +389,7 @@ struct PinnedView: View {
             let expanded = (hovered || moving) && !preview
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 6) {
+                    if s.priority != .none { FlagIcon(priority: s.priority).padding(.top, 4) }
                     Text(s.title)
                         .font(.system(size: 15, weight: .semibold))
                         .fixedSize(horizontal: false, vertical: true)
@@ -379,13 +407,14 @@ struct PinnedView: View {
                     .lineLimit(expanded ? nil : 2)
                     .padding(.top, 6)
                 if expanded && !s.todo.isEmpty { TodoList(sticker: s, store: store).padding(.top, 10) }
+                if expanded { StatusPriorityPicker(sticker: s, store: store).padding(.top, 12) }
                 MetaRow(sticker: s, store: store, showTags: true).padding(.top, 8)
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
             .frame(width: expanded ? 280 : 220, alignment: .leading)
             .foregroundStyle(Palette.ink)
             .background(UnevenRoundedRectangle(topLeadingRadius: 4, bottomLeadingRadius: 4, bottomTrailingRadius: 14, topTrailingRadius: 4)
-                .fill(Palette.sticky).shadow(color: .black.opacity(0.32), radius: 14, y: 10))
+                .fill(Palette.sticky(s.status)).shadow(color: .black.opacity(0.32), radius: 14, y: 10))
             .onHover { hovered = $0 }
             .animation(.easeOut(duration: 0.16), value: expanded)
             .padding(pinMargin)
@@ -437,6 +466,70 @@ struct UndoToast: View {
 }
 
 // MARK: - Small pieces
+
+/// Told apart by shape as well as color: outline (low), filled (medium), filled with "!" (high).
+struct FlagIcon: View {
+    let priority: Priority
+    var color: Color?
+    var size: CGFloat = 11
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Image(systemName: priority == .low ? "flag" : "flag.fill")
+            if priority == .high { Text("!").fontWeight(.heavy) }
+        }
+        .font(.system(size: size, weight: .semibold))
+        .foregroundStyle(color ?? Palette.flag(priority))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tr("Приоритет: ", "Priority: ") + priority.label.lowercased())
+    }
+}
+
+/// Two rows of chips on an open card or pinned sticker: its status (each chip shows that status's color)
+/// and its priority.
+struct StatusPriorityPicker: View {
+    let sticker: Sticker
+    let store: Store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(tr("Статус", "Status")).pickerTitle()
+            FlowLayout(spacing: 6) {
+                ForEach(StickerStatus.allCases, id: \.self) { status in
+                    let on = sticker.status == status
+                    Button { store.update(sticker.id) { $0.status = status } } label: {
+                        HStack(spacing: 6) {
+                            Circle().fill(Palette.sticky(status))
+                                .overlay(Circle().strokeBorder(Palette.ink.opacity(0.25)))
+                                .frame(width: 12, height: 12)
+                            Text(status.label)
+                        }
+                        .pickerChip(on: on)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            Text(tr("Приоритет", "Priority")).pickerTitle().padding(.top, 4)
+            FlowLayout(spacing: 6) {
+                ForEach(Priority.allCases, id: \.self) { priority in
+                    let on = sticker.priority == priority
+                    Button { store.update(sticker.id) { $0.priority = priority } } label: {
+                        HStack(spacing: 5) {
+                            if priority != .none {
+                                FlagIcon(priority: priority, color: on ? Palette.panel : nil, size: 10).accessibilityHidden(true)  // the chip says it
+                            }
+                            Text(priority.label)
+                        }
+                        .pickerChip(on: on)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+        }
+    }
+}
 
 /// Copies the sticker as text; the icon turns into a check for a moment so the click is visibly done.
 struct CopyButton: View {
@@ -543,6 +636,19 @@ struct IconButton: View {
 }
 
 extension View {
+    func pickerTitle() -> some View {
+        font(.system(size: 11, weight: .semibold)).textCase(.uppercase).tracking(0.4).foregroundStyle(Palette.meta)
+    }
+
+    func pickerChip(on: Bool) -> some View {
+        font(.system(size: 12, weight: .medium))
+            .foregroundStyle(on ? Palette.panel : Palette.ink)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(on ? Palette.panelInk : Color.white.opacity(0.75), in: Capsule())
+            .overlay(Capsule().strokeBorder(Palette.panelInk.opacity(on ? 1 : 0.14)))
+    }
+
     func chip(fill: Color) -> some View {
         font(.system(size: 12, weight: .medium))
             .foregroundStyle(Palette.ink)

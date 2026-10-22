@@ -229,7 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Open ideas next to the icon (pinned ones too, "позже" not), nothing when there are none.
     private func showCount() {
-        let count = store.stickers.filter { !$0.isLater }.count
+        let count = store.stickers.filter { !$0.isPostponed }.count
         status.button?.title = count > 0 ? " \(count)" : ""
         status.button?.setAccessibilityLabel(tr("AI Stickers, идей: ", "AI Stickers, ideas: ") + "\(count)")
     }
