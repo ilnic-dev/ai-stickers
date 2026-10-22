@@ -21,7 +21,7 @@ private struct Message: Decodable {
 }
 private struct TGFile: Decodable { let file_path: String }
 private struct BotInfo: Decodable { let username: String }
-private struct Note: Decodable { let title: String; let summary: String; let todo: [String]; let tags: [String] }
+private struct Note: Decodable { let title: String; let summary: String; let todo: [String]; let tags: [String]; let priority: String? }
 private struct ClaudeOutput: Decodable { let structured_output: Note? }
 
 /// Telegram long polling is the queue: ideas sent while the Mac sleeps wait on Telegram's side (up to 24h).
@@ -94,8 +94,8 @@ final class Bot {
         do {
             // "typing…" in the chat while whisper and Claude work (Telegram shows it for ~5 s).
             let _: Bool? = try? await call("sendChatAction", ["chat_id": m.chat.id, "action": "typing"])
-            // "позже" hides an idea; only the user sets it (#позже or the panel), never Claude.
-            let vocabulary = await store.vocabulary.filter { $0 != laterTag }
+            // Postponing is the user's call (#позже or the panel), never Claude's.
+            let vocabulary = await store.vocabulary
             var raw = m.text ?? m.caption ?? ""
             if let file = m.voice ?? m.audio ?? m.video_note {
                 raw = [raw, try await transcribe(file.file_id, vocabulary: vocabulary)].filter { !$0.isEmpty }.joined(separator: "\n")
@@ -104,9 +104,11 @@ final class Bot {
             let _: Bool? = try? await call("sendChatAction", ["chat_id": m.chat.id, "action": "typing"])  // whisper took a while
             var sticker = summarize(raw, vocabulary: vocabulary)
             let picked = hashtags(in: raw)
-            sticker.tags = picked + sticker.tags.filter { !picked.contains($0) }
+            if picked.contains(laterTag) { sticker.status = .postponed }  // #позже / #later
+            sticker.tags = picked.filter { $0 != laterTag } + sticker.tags.filter { !picked.contains($0) }
             await store.add(sticker)
-            await reply(m.chat.id, (["📌 \(sticker.title)"] + sticker.tags.map { "#" + tagLabel($0) }).joined(separator: " "))
+            let marks = [sticker.priority == .none ? nil : "‼️ " + sticker.priority.label.lowercased(), sticker.isPostponed ? sticker.status.label.lowercased() : nil].compactMap { $0 }
+            await reply(m.chat.id, (["📌 \(sticker.title)"] + sticker.tags.map { "#" + $0 } + marks).joined(separator: " "))
         } catch {
             await reply(m.chat.id, tr("⚠️ Не получилось: ", "⚠️ Failed: ") + describe(error))
         }
@@ -138,7 +140,7 @@ final class Bot {
 
     /// Never loses the idea: if Claude fails, the raw text becomes the sticker.
     private func summarize(_ raw: String, vocabulary: [String]) -> Sticker {
-        let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}}},"required":["title","summary","todo","tags"]}"#
+        let schema = #"{"type":"object","properties":{"title":{"type":"string"},"summary":{"type":"string"},"todo":{"type":"array","items":{"type":"string"}},"tags":{"type":"array","items":{"type":"string"}},"priority":{"type":"string","enum":["none","low","medium","high"]}},"required":["title","summary","todo","tags","priority"]}"#
         let system = """
         You turn a raw idea (often a messy voice transcript) into a sticky note.
         Language: \(isMostlyCyrillic(raw)
@@ -150,6 +152,7 @@ final class Bot {
         summary: 1-3 clean sentences keeping every concrete detail (names, numbers, links, places).
         todo: only actions the author stated or clearly implied, as short imperatives; empty if none. Never invent tasks.
         tags: 0-2 tags copied exactly from this list, only when they clearly fit; never new ones: \(vocabulary.joined(separator: ", "))
+        priority: "high" only if the author says it is urgent or very important, "medium" if they say it matters, "low" if they call it minor; otherwise "none". Never guess.
         """
         do {
             let out = try exec(cfg.claude, [
@@ -160,7 +163,8 @@ final class Bot {
             if let n = try JSONDecoder().decode(ClaudeOutput.self, from: Data(out.utf8)).structured_output {
                 var tags: [String] = []
                 for t in n.tags.map(normalizeTag) where vocabulary.contains(t) && !tags.contains(t) { tags.append(t) }
-                return Sticker(title: n.title, summary: n.summary, todo: n.todo, raw: raw, tags: Array(tags.prefix(2)))
+                let priority: Priority = ["low": .low, "medium": .medium, "high": .high][n.priority ?? ""] ?? .none
+                return Sticker(title: n.title, summary: n.summary, todo: n.todo, raw: raw, tags: Array(tags.prefix(2)), priority: priority)
             }
         } catch {
             print("claude:", error)

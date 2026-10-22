@@ -62,7 +62,9 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 - **Tags.** Filter chips at the top of the panel; pick several at once. On a card, `×` removes a tag and `+ тег` adds an existing or a new one.
 - **Mixed Russian and English voice notes** come out right: English terms stay in Latin script, and the sticker is written in the language you mostly spoke.
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.
-- **«позже» (later)** is a built-in tag that hides ideas that are not relevant yet; one click shows them again.
+- **Status** of each idea, and the whole card takes its color: New (yellow), In progress (blue), On hold (peach), Postponed (gray, hidden until you ask). `#позже` or `#later` in a message postpones it.
+- **Priority**: none, low, medium or high, shown as a flag before the title; higher priority sorts to the top. Claude sets it only when you say it's urgent or important.
+- Change status and priority with the chips on an open card, in the panel or on a pinned sticker.
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
 - **Right-click the icon** for the menu: show ideas, set up the bot, launch at login, interface language, stickers on every desktop, quit.
 - **Pinned stickers stay on their desktop.** A sticker stays on the desktop (Space) where you put it; turn on «Stickers on every desktop» in the menu to have them follow you instead.

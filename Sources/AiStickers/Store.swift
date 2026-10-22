@@ -1,6 +1,34 @@
 import Foundation
 import Observation
 
+enum StickerStatus: String, Codable, CaseIterable {
+    case new, inProgress, onHold, postponed
+
+    var label: String {
+        switch self {
+        case .new: tr("Новая", "New")
+        case .inProgress: tr("В работе", "In progress")
+        case .onHold: tr("На паузе", "On hold")
+        case .postponed: tr("Отложено", "Postponed")
+        }
+    }
+}
+
+enum Priority: Int, Codable, CaseIterable, Comparable {
+    case none, low, medium, high
+
+    static func < (a: Priority, b: Priority) -> Bool { a.rawValue < b.rawValue }
+
+    var label: String {
+        switch self {
+        case .none: tr("Нет", "None")
+        case .low: tr("Низкий", "Low")
+        case .medium: tr("Средний", "Medium")
+        case .high: tr("Высокий", "High")
+        }
+    }
+}
+
 struct Sticker: Codable, Identifiable, Equatable {
     var id = UUID()
     var created = Date()
@@ -13,8 +41,10 @@ struct Sticker: Codable, Identifiable, Equatable {
     var pinned = false       // floats on the desktop instead of sitting in the panel
     var left: Double?        // top-left corner of a pinned sticker
     var top: Double?
+    var status: StickerStatus = .new
+    var priority: Priority = .none
 
-    var isLater: Bool { tags.contains(laterTag) }
+    var isPostponed: Bool { status == .postponed }
     var openTodos: Int { todo.indices.filter { !done.contains($0) }.count }
 }
 
@@ -33,10 +63,17 @@ extension Sticker {
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
         left = try c.decodeIfPresent(Double.self, forKey: .left)
         top = try c.decodeIfPresent(Double.self, forKey: .top)
+        status = try c.decodeIfPresent(StickerStatus.self, forKey: .status) ?? .new
+        priority = try c.decodeIfPresent(Priority.self, forKey: .priority) ?? .none
+        // "позже" (or "later") used to be a tag; it is the postponed status now.
+        if tags.contains(where: { normalizeTag($0) == laterTag }) {
+            status = .postponed
+            tags.removeAll { normalizeTag($0) == laterTag }
+        }
     }
 }
 
-/// The built-in tag for ideas that are not relevant yet: hidden from the panel by default.
+/// `#позже` / `#later` in a message postpones the idea instead of becoming a tag.
 let laterTag = "позже"
 
 /// Lowercase, one word: "#Новый тег," → "новый-тег", so every tag round-trips as a #hashtag.
@@ -45,7 +82,7 @@ func normalizeTag(_ s: String) -> String {
         .split { $0.isWhitespace || $0 == "," }
         .joined(separator: "-")
         .trimmingCharacters(in: CharacterSet(charactersIn: "#-_"))
-    return tag == "later" ? laterTag : tag  // the English name of the built-in tag
+    return tag == "later" ? laterTag : tag  // #later works like #позже
 }
 
 // MARK: - Interface language
@@ -74,7 +111,6 @@ final class Lang: @unchecked Sendable {
 func tr(_ ru: String, _ en: String) -> String { Lang.shared.english ? en : ru }
 
 /// How a tag is shown: the built-in one gets its English name in the English interface.
-func tagLabel(_ tag: String) -> String { tag == laterTag ? tr(laterTag, "later") : tag }
 
 private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 
@@ -95,7 +131,9 @@ func clipboardText(_ s: Sticker) -> String {
     if !s.todo.isEmpty {
         parts.append(s.todo.enumerated().map { "- [\(s.done.contains($0.offset) ? "x" : " ")] \($0.element)" }.joined(separator: "\n"))
     }
-    if !s.tags.isEmpty { parts.append(s.tags.map { "#" + tagLabel($0) }.joined(separator: " ")) }
+    if !s.tags.isEmpty { parts.append(s.tags.map { "#" + $0 }.joined(separator: " ")) }
+    let marks = [s.status == .new ? nil : s.status.label, s.priority == .none ? nil : tr("приоритет: ", "priority: ") + s.priority.label.lowercased()]
+    if !marks.compactMap({ $0 }).isEmpty { parts.append(marks.compactMap { $0 }.joined(separator: " · ")) }
     return parts.joined(separator: "\n\n")
 }
 
@@ -109,16 +147,15 @@ func hashtags(in text: String) -> [String] {
     return seen
 }
 
-/// What the panel lists: unpinned, newest first. A sticker matches the filter if it has any of its tags.
-/// "позже" stays hidden unless shown explicitly or picked in the filter.
-func panelStickers(_ all: [Sticker], filter: Set<String>, showLater: Bool) -> [Sticker] {
-    let laterPicked = filter.contains(laterTag)
-    return all.filter { s in
+/// What the panel lists: unpinned, higher priority first, then newest. A sticker matches the filter if it
+/// has any of its tags. Postponed ones stay hidden unless asked for.
+func panelStickers(_ all: [Sticker], filter: Set<String>, showPostponed: Bool) -> [Sticker] {
+    all.filter { s in
         !s.pinned
-            && (showLater || laterPicked || !s.isLater)
+            && (showPostponed || !s.isPostponed)
             && (filter.isEmpty || !filter.isDisjoint(with: s.tags))
     }
-    .sorted { $0.created > $1.created }
+    .sorted { $0.priority != $1.priority ? $0.priority > $1.priority : $0.created > $1.created }
 }
 
 /// Where a pinned sticker's top-left corner may sit: unchanged while the whole card is on screens (even across
@@ -131,12 +168,11 @@ func clampTopLeft(_ p: CGPoint, card: CGSize, screens: [CGRect]) -> CGPoint {
     return CGPoint(x: max(min(p.x, s.maxX - card.width), s.minX), y: min(max(p.y, s.minY + card.height), s.maxY))
 }
 
-/// Every tag in use, most used first, and "позже" always last.
+/// Every tag in use, most used first.
 func tagVocabulary(_ all: [Sticker]) -> [String] {
     var counts: [String: Int] = [:]
-    for s in all { for t in s.tags where t != laterTag { counts[t, default: 0] += 1 } }
-    let sorted = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
-    return sorted + [laterTag]
+    for s in all { for t in s.tags { counts[t, default: 0] += 1 } }
+    return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
 }
 
 @MainActor @Observable
@@ -159,13 +195,6 @@ final class Store {
         guard let data = try? Data(contentsOf: self.url) else { return }
         do {
             stickers = try JSONDecoder().decode([Sticker].self, from: data)
-            // "later" became the English name of the built-in tag; fold old copies into it.
-            for i in stickers.indices where stickers[i].tags.contains("later") {
-                stickers[i].tags = stickers[i].tags.reduce(into: []) { t, x in
-                    let n = normalizeTag(x)
-                    if !t.contains(n) { t.append(n) }
-                }
-            }
         } catch {
             // Keep an unreadable file instead of overwriting it with an empty list.
             try? FileManager.default.moveItem(at: self.url, to: self.url.appendingPathExtension("broken-\(Int(Date().timeIntervalSince1970))"))
