@@ -64,7 +64,8 @@ you ──► Telegram ──► AI Stickers on your Mac ──► sticker in th
 - **`#tag` in a message** sets that tag right away. Claude adds up to 2 more, but only from tags you already use.
 - **«позже» (later)** is a built-in tag that hides ideas that are not relevant yet; one click shows them again.
 - **Pin to the desktop.** Drag a card out of the panel and it becomes a free-floating sticker. Move it by its ✥ handle, hover it to see the checklist, send it back to the panel with one click.
-- **Right-click the icon** for the menu: show ideas, launch at login, interface language, quit.
+- **Right-click the icon** for the menu: show ideas, set up the bot, launch at login, interface language, stickers on every desktop, quit.
+- **Pinned stickers stay on their desktop.** A sticker stays on the desktop (Space) where you put it; turn on «Stickers on every desktop» in the menu to have them follow you instead.
 - **English or Russian interface**, switched in the menu bar («Язык / Language»); it follows the system language by default. Stickers stay in the language you spoke them in.
 - **Can start at login** (it asks on first launch), has no Dock icon, and only one copy runs at a time.
 
@@ -164,6 +165,7 @@ that explains what changed and how it works. Rules for contributors and coding a
 - Telegram is the only input for now.
 - The download is ad-hoc signed, not notarized: macOS asks you to confirm the first launch once.
 - Tag colors follow alphabetical order, so adding a tag can shift the colors of others.
+- macOS has no public way to put a window on a given desktop, so after a relaunch all pinned stickers start on the current desktop; move them back once and they stay.
 
 ## License
 

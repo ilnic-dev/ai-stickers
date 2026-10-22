@@ -200,6 +200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menu.addItem(language)
 
+        let spaces = NSMenuItem(title: tr("Стикеры на всех рабочих столах", "Stickers on every desktop"),
+                                action: #selector(toggleAllSpaces), keyEquivalent: "")
+        spaces.target = self
+        spaces.state = Board.stickersOnAllSpaces ? .on : .off
+        menu.addItem(spaces)
+
         menu.addItem(.separator())
         menu.addItem(withTitle: tr("Выйти", "Quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         self.menu = menu
@@ -226,6 +232,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let count = store.stickers.filter { !$0.isLater }.count
         status.button?.title = count > 0 ? " \(count)" : ""
         status.button?.setAccessibilityLabel(tr("AI Stickers, идей: ", "AI Stickers, ideas: ") + "\(count)")
+    }
+
+    @objc private func toggleAllSpaces() {
+        board.setStickersOnAllSpaces(!Board.stickersOnAllSpaces)
+        buildMenu()
     }
 
     @objc private func pickLanguage(_ item: NSMenuItem) {

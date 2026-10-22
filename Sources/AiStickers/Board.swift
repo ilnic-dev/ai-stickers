@@ -198,9 +198,30 @@ final class Board {
                           PinnedView(id: s.id, store: store, onMoved: { [weak self] in self?.pinnedMoved(s.id) }))
             // Not saved back: if the monitor returns on the next launch, so does the sticker.
             w.setFrameOrigin(onScreen(left: s.left ?? 400, top: s.top ?? 700))
-            w.orderFrontRegardless()
+            w.collectionBehavior = Board.pinnedBehavior
+            w.orderFrontRegardless()  // a window that doesn't join all Spaces stays on the current one
             pinned[s.id] = w
         }
+    }
+
+    // MARK: - Desktops (Spaces)
+
+    private static let allSpacesKey = "stickersOnAllSpaces"
+
+    /// Off by default: a pinned sticker stays on the desktop where it was put. macOS has no public way to
+    /// put a window on a given desktop, so after a relaunch they all start on the current one.
+    static var stickersOnAllSpaces: Bool {
+        get { UserDefaults.standard.bool(forKey: allSpacesKey) }
+        set { UserDefaults.standard.set(newValue, forKey: allSpacesKey) }
+    }
+
+    private static var pinnedBehavior: NSWindow.CollectionBehavior {
+        stickersOnAllSpaces ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.fullScreenAuxiliary]
+    }
+
+    func setStickersOnAllSpaces(_ on: Bool) {
+        Board.stickersOnAllSpaces = on
+        for w in pinned.values { w.collectionBehavior = Board.pinnedBehavior }
     }
 
     // Dragging a card: a preview follows the mouse; dropped outside the panel, the sticker gets pinned there.
