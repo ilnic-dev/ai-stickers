@@ -63,8 +63,9 @@ extension Sticker {
         pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
         left = try c.decodeIfPresent(Double.self, forKey: .left)
         top = try c.decodeIfPresent(Double.self, forKey: .top)
-        status = try c.decodeIfPresent(StickerStatus.self, forKey: .status) ?? .new
-        priority = try c.decodeIfPresent(Priority.self, forKey: .priority) ?? .none
+        // try?: a value this build doesn't know (written by a newer one) must not fail the whole file.
+        status = (try? c.decodeIfPresent(StickerStatus.self, forKey: .status)) ?? .new
+        priority = (try? c.decodeIfPresent(Priority.self, forKey: .priority)) ?? .none
         // "позже" (or "later") used to be a tag; it is the postponed status now.
         if tags.contains(where: { normalizeTag($0) == laterTag }) {
             status = .postponed
@@ -110,8 +111,6 @@ final class Lang: @unchecked Sendable {
 /// The string for the current interface language: `tr("Идеи", "Ideas")`.
 func tr(_ ru: String, _ en: String) -> String { Lang.shared.english ? en : ru }
 
-/// How a tag is shown: the built-in one gets its English name in the English interface.
-
 private let hashtagPattern = try! Regex(#"(?:^|\s)#([\p{L}\p{N}_-]+)"#)
 
 /// Cyrillic letters outnumber Latin ones. Told to Claude explicitly: left to judge mixed speech
@@ -156,6 +155,14 @@ func panelStickers(_ all: [Sticker], filter: Set<String>, showPostponed: Bool) -
             && (filter.isEmpty || !filter.isDisjoint(with: s.tags))
     }
     .sorted { $0.priority != $1.priority ? $0.priority > $1.priority : $0.created > $1.created }
+}
+
+/// While a card is being edited the list keeps the order it had, so a priority change doesn't pull the
+/// card from under the mouse; new ones go last. Without a frozen order, the list is as sorted.
+func keepingOrder(_ list: [Sticker], _ frozen: [UUID]?) -> [Sticker] {
+    guard let frozen else { return list }
+    let rank = Dictionary(frozen.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+    return list.enumerated().sorted { (rank[$0.element.id] ?? frozen.count + $0.offset, $0.offset) < (rank[$1.element.id] ?? frozen.count + $1.offset, $1.offset) }.map(\.element)
 }
 
 /// Where a pinned sticker's top-left corner may sit: unchanged while the whole card is on screens (even across

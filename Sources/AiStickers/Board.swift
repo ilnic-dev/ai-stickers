@@ -9,6 +9,7 @@ final class BoardState {
     var filter: Set<String> = []
     var showLater = false
     var hovered: UUID?
+    var frozenOrder: [UUID]?  // the panel's order while a card is open, see keepingOrder
     var addingTag: UUID?  // card whose tag picker is open
 }
 
@@ -44,7 +45,7 @@ final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
 
 /// Room around a pinned sticker for its shadow and for growing on hover.
 let pinMargin: CGFloat = 24
-private let pinWindow = NSSize(width: 280 + 2 * pinMargin, height: 520 + 2 * pinMargin)
+private let pinWindow = NSSize(width: 280 + 2 * pinMargin, height: 700 + 2 * pinMargin)  // room for the open sticker's pickers
 private let panelWidth: CGFloat = 340
 let panelMargin: CGFloat = 24        // shadow room around the panel card, inside its window
 let panelBottom: CGFloat = 48        // the shadow falls downward (radius 25, y 18)
@@ -168,6 +169,7 @@ final class Board {
             panel.orderFrontRegardless()
         } else {
             state.hovered = nil
+            state.frozenOrder = nil
             state.addingTag = nil
             ghost?.close()  // a drag cancelled mid-way never reaches dragEnded
             ghost = nil
@@ -228,6 +230,7 @@ final class Board {
     // The grab point sits near the sticker's top-left corner.
     func dragChanged(_ id: UUID) {
         if state.hovered != nil { state.hovered = nil }  // @Observable notifies even on equal writes
+        if state.frozenOrder != nil { state.frozenOrder = nil }
         if ghost == nil {
             let g = Panel(NSRect(origin: .zero, size: pinWindow), PinnedView(id: id, store: store, preview: true))
             g.ignoresMouseEvents = true

@@ -110,7 +110,8 @@ struct PanelView: View {
 
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(list) { s in CardView(sticker: s, store: store, state: state, board: board) }
+                    let shown = keepingOrder(list, state.frozenOrder)
+                    ForEach(shown) { s in CardView(sticker: s, store: store, state: state, board: board, order: shown.map(\.id)) }
                     if inPanel.isEmpty {
                         Text(tr("Пока пусто. Напиши мысль боту в Telegram.", "Nothing yet. Send a thought to the Telegram bot.")).emptyNote()
                     } else if list.isEmpty {
@@ -187,6 +188,8 @@ struct CardView: View {
     let store: Store
     let state: BoardState
     let board: Board
+    /// The list's order when this card was opened; frozen while it's open.
+    let order: [UUID]
     @GestureState private var dragging = false
 
     var body: some View {
@@ -231,9 +234,11 @@ struct CardView: View {
         .contentShape(Rectangle())
         .onHover { inside in
             if inside {
+                if state.frozenOrder == nil { state.frozenOrder = order }
                 state.hovered = sticker.id
             } else if state.hovered == sticker.id {
                 state.hovered = nil
+                state.frozenOrder = nil
                 state.addingTag = nil
             }
         }
@@ -335,7 +340,8 @@ struct TagEditor: View {
 
     private func add(_ tag: String) {
         guard !tag.isEmpty, !sticker.tags.contains(tag) else { return }
-        store.update(sticker.id) { $0.tags.append(tag) }
+        // "позже"/"later" is the postponed status, as in a #hashtag, not a tag.
+        store.update(sticker.id) { if tag == laterTag { $0.status = .postponed } else { $0.tags.append(tag) } }
         state.addingTag = nil
     }
 }
@@ -461,13 +467,21 @@ struct UndoToast: View {
 
 // MARK: - Small pieces
 
+/// Told apart by shape as well as color: outline (low), filled (medium), filled with "!" (high).
 struct FlagIcon: View {
     let priority: Priority
+    var color: Color?
+    var size: CGFloat = 11
+
     var body: some View {
-        Image(systemName: "flag.fill")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Palette.flag(priority))
-            .accessibilityLabel(tr("Приоритет: ", "Priority: ") + priority.label.lowercased())
+        HStack(spacing: 0) {
+            Image(systemName: priority == .low ? "flag" : "flag.fill")
+            if priority == .high { Text("!").fontWeight(.heavy) }
+        }
+        .font(.system(size: size, weight: .semibold))
+        .foregroundStyle(color ?? Palette.flag(priority))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tr("Приоритет: ", "Priority: ") + priority.label.lowercased())
     }
 }
 
@@ -503,8 +517,7 @@ struct StatusPriorityPicker: View {
                     Button { store.update(sticker.id) { $0.priority = priority } } label: {
                         HStack(spacing: 5) {
                             if priority != .none {
-                                Image(systemName: "flag.fill").font(.system(size: 10))
-                                    .foregroundStyle(on ? Palette.panel : Palette.flag(priority))
+                                FlagIcon(priority: priority, color: on ? Palette.panel : nil, size: 10)
                             }
                             Text(priority.label)
                         }

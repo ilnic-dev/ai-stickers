@@ -140,3 +140,15 @@ private func sticker(_ title: String, tags: [String] = [], pinned: Bool = false,
     let marks = StickerStatus.inProgress.label + " · " + tr("приоритет: ", "priority: ") + Priority.high.label.lowercased()
     #expect(clipboardText(s) == "t\n\ns\n\n" + marks)
 }
+
+@Test func openCardKeepsItsPlace() {
+    let a = sticker("a"), b = sticker("b"), c = sticker("c")
+    #expect(keepingOrder([b, a, c], nil).map(\.title) == ["b", "a", "c"])
+    #expect(keepingOrder([b, a, c], [a.id, b.id]).map(\.title) == ["a", "b", "c"])
+}
+
+@Test func unknownStatusFromANewerBuildLoadsAsNew() throws {
+    let json = #"[{"id":"11111111-1111-1111-1111-111111111111","created":0,"title":"t","summary":"s","todo":[],"raw":"r","status":"archived","priority":9}]"#
+    let s = try #require(try JSONDecoder().decode([Sticker].self, from: Data(json.utf8)).first)
+    #expect(s.status == .new && s.priority == .none)
+}
